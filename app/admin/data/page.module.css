@@ -1,0 +1,160 @@
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 40px;
+  color: white;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.backBtn {
+  color: #888;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.backBtn:hover {
+  color: white;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.totalStats {
+  background: rgba(79, 195, 247, 0.1);
+  border: 1px solid rgba(79, 195, 247, 0.3);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.totalLabel {
+  font-size: 14px;
+  color: #888;
+}
+
+.totalValue {
+  font-size: 48px;
+  font-weight: 700;
+  color: #4fc3f7;
+}
+
+.section {
+  margin-bottom: 32px;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #888;
+}
+
+.collectionList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.collectionCard {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.collectionInfo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.collectionName {
+  font-size: 15px;
+  font-weight: 500;
+  min-width: 200px;
+}
+
+.collectionCount {
+  font-size: 14px;
+  color: #4fc3f7;
+  font-weight: 600;
+}
+
+.deleteBtn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  background: rgba(239, 83, 80, 0.2);
+  color: #ef5350;
+  transition: background 0.2s;
+}
+
+.deleteBtn:hover:not(:disabled) {
+  background: rgba(239, 83, 80, 0.3);
+}
+
+.deleteBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dangerZone {
+  background: rgba(239, 83, 80, 0.1);
+  border: 1px solid rgba(239, 83, 80, 0.3);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.dangerButtons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dangerBtn {
+  padding: 14px 24px;
+  border-radius: 10px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: linear-gradient(135deg, #ef5350 0%, #e53935 100%);
+  color: white;
+  transition: opacity 0.2s;
+}
+
+.dangerBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.dangerBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dangerNote {
+  margin: 16px 0 0 0;
+  font-size: 13px;
+  color: #ef5350;
+}
+

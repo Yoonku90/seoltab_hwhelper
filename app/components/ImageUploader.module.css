@@ -1,0 +1,136 @@
+.container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.uploadArea {
+  width: 100%;
+  min-height: 300px;
+  border: 2px dashed #ddd;
+  border-radius: 12px;
+  background: #f9f9f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.uploadArea:hover {
+  border-color: #2196f3;
+  background: #f0f8ff;
+}
+
+.placeholder {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.placeholder p {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.uploadBtn {
+  padding: 12px 24px;
+  font-size: 16px;
+  border: 2px solid #2196f3;
+  background: white;
+  color: #2196f3;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.uploadBtn:hover:not(:disabled) {
+  background: #2196f3;
+  color: white;
+}
+
+.uploadBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.previewImage {
+  max-width: 100%;
+  max-height: 600px;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.removeBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.removeBtn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
+}
+
+.status {
+  margin-top: 16px;
+  text-align: center;
+  color: #2196f3;
+  font-size: 14px;
+}
+
+/* 모바일 대응 */
+@media (max-width: 768px) {
+  .uploadArea {
+    min-height: 250px;
+  }
+
+  .placeholder p {
+    font-size: 16px;
+  }
+
+  .buttonGroup {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .uploadBtn {
+    width: 100%;
+    padding: 14px;
+  }
+
+  .previewImage {
+    max-height: 400px;
+  }
+}

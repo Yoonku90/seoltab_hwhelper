@@ -1,0 +1,164 @@
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.backBtn {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: #2196f3;
+  text-decoration: underline;
+}
+
+.header h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.header p {
+  color: #666;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.selectedCount {
+  padding: 1rem;
+  background: #e3f2fd;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1976d2;
+}
+
+.problemList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.problemCard {
+  display: flex;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.problemCard:hover {
+  border-color: #2196f3;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+}
+
+.problemCard.selected {
+  border-color: #2196f3;
+  background: #e3f2fd;
+}
+
+.checkbox {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.problemCard.selected .checkbox {
+  background: #2196f3;
+  border-color: #2196f3;
+}
+
+.checkmark {
+  color: white;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.problemContent {
+  flex: 1;
+}
+
+.problemContent h3 {
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.problemText {
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+  color: #555;
+}
+
+.problemImage {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.status {
+  padding: 0.25rem 0.5rem;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.timeSpent {
+  padding: 0.25rem 0.5rem;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.confirmBtn {
+  padding: 1rem 2rem;
+  background: #2196f3;
+  color: white;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.confirmBtn:hover:not(:disabled) {
+  background: #1976d2;
+}
+
+.confirmBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.empty {
+  text-align: center;
+  padding: 3rem;
+  color: #999;
+}
+

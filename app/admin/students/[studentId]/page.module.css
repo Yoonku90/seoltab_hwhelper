@@ -1,0 +1,245 @@
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 40px;
+  color: white;
+}
+
+.header {
+  margin-bottom: 32px;
+}
+
+.backBtn {
+  color: #888;
+  text-decoration: none;
+  font-size: 14px;
+  display: inline-block;
+  margin-bottom: 12px;
+}
+
+.backBtn:hover {
+  color: white;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gradeBadge {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.loading, .error, .empty {
+  text-align: center;
+  padding: 60px;
+  color: #888;
+}
+
+.section {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 20px 0;
+}
+
+.subTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #aaa;
+  margin: 20px 0 12px 0;
+}
+
+/* 기본 정보 그리드 */
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.infoLabel {
+  font-size: 12px;
+  color: #888;
+}
+
+.infoValue {
+  font-size: 15px;
+  color: white;
+}
+
+/* 통계 그리드 */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.statCard {
+  background: rgba(79, 195, 247, 0.1);
+  border: 1px solid rgba(79, 195, 247, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+}
+
+.statValue {
+  font-size: 28px;
+  font-weight: 700;
+  color: #4fc3f7;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* 주제 태그 */
+.topicsSection, .stuckSection, .understandingSection {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.topicTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.topicTag {
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  background: rgba(102, 126, 234, 0.2);
+  color: #a5b4fc;
+}
+
+/* 자주 막히는 부분 */
+.stuckList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stuckItem {
+  font-size: 14px;
+  padding: 10px 14px;
+  background: rgba(239, 83, 80, 0.1);
+  border-left: 3px solid #ef5350;
+  border-radius: 4px;
+}
+
+/* 이해도 현황 */
+.understandingGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.understandingItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.understandingTopic {
+  width: 100px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.understandingBar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.understandingFill {
+  height: 100%;
+  background: linear-gradient(90deg, #4fc3f7 0%, #29b6f6 100%);
+  border-radius: 4px;
+}
+
+.understandingValue {
+  width: 40px;
+  font-size: 13px;
+  color: #4fc3f7;
+  text-align: right;
+}
+
+/* 복습 프로그램 목록 */
+.programList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.programItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+}
+
+.programInfo {
+  flex: 1;
+}
+
+.programTitle {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.programMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.programSubject {
+  font-size: 12px;
+  padding: 3px 10px;
+  background: rgba(102, 126, 234, 0.2);
+  border-radius: 10px;
+}
+
+.programDate {
+  font-size: 12px;
+  color: #888;
+}
+
+.programProgress {
+  font-size: 12px;
+  padding: 4px 12px;
+  background: rgba(76, 175, 80, 0.2);
+  color: #81c784;
+  border-radius: 12px;
+}
+

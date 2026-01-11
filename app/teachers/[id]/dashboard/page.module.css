@@ -1,0 +1,231 @@
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.header p {
+  color: #666;
+}
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.card {
+  padding: 1.5rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.cardHeader {
+  margin-bottom: 1rem;
+}
+
+.cardHeader h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+  color: #666;
+  flex-wrap: wrap;
+}
+
+.progress {
+  margin-bottom: 1rem;
+}
+
+.progressStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.label {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+
+.value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.value.solved {
+  color: #4caf50;
+}
+
+.value.stuck {
+  color: #ff9800;
+}
+
+.value.question {
+  color: #2196f3;
+}
+
+.top5Status {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border-radius: 4px;
+  background: #f5f5f5;
+}
+
+.confirmed {
+  color: #4caf50;
+  font-weight: 500;
+}
+
+.notConfirmed {
+  color: #ff9800;
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.generateBtn,
+.toggleBtn {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.generateBtn {
+  background: #2196f3;
+  color: white;
+}
+
+.generateBtn:hover {
+  background: #1976d2;
+}
+
+.toggleBtn {
+  background: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.toggleBtn:hover {
+  background: #e0e0e0;
+}
+
+.digest {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px solid #ddd;
+}
+
+.digest h3 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.top5List {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.top5Item {
+  padding: 1rem;
+  background: #f9f9f9;
+  border-radius: 4px;
+  border-left: 4px solid #2196f3;
+}
+
+.top5Header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.top5Number {
+  font-weight: 600;
+  color: #333;
+}
+
+.timeSpent {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.top5Text {
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+  color: #555;
+}
+
+.stuckReason {
+  padding: 0.5rem;
+  background: white;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #ff9800;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.summaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #f9f9f9;
+  border-radius: 4px;
+}
+
+.summaryItem span:first-child {
+  font-weight: 600;
+  color: #333;
+}
+
+.summaryItem ul {
+  margin-left: 1.5rem;
+  color: #666;
+}
+
+.empty {
+  text-align: center;
+  padding: 3rem;
+  color: #999;
+  font-size: 1.1rem;
+}
+
