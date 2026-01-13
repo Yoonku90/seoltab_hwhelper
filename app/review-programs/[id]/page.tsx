@@ -24,6 +24,13 @@ type TutorState = {
 type ChatMsg = {
   from: 'rang' | 'student';
   text: string;
+  highlightRegion?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    problemNumber?: number;
+  } | null;
 };
 
 export default function ReviewProgramDetailPage() {
@@ -57,6 +64,7 @@ export default function ReviewProgramDetailPage() {
   const sessionStartTimeRef = useRef<number>(Date.now());
   const lastTutorMessageRef = useRef<string>('');
   const sessionStartedRef = useRef(false);
+  const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null); // 🖼️ Phase 2: setTimeout cleanup용
 
   useEffect(() => {
     (async () => {
@@ -102,6 +110,12 @@ export default function ReviewProgramDetailPage() {
     setTutorState({ stage: 'intro', idx: 0, awaiting: 'none' });
     sessionStartTimeRef.current = Date.now();
     sessionStartedRef.current = false;
+    // 🖼️ Phase 2: highlightRegion cleanup
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    setCurrentHighlightRegion(null);
   }, [id]);
 
   useEffect(() => {
@@ -114,6 +128,15 @@ export default function ReviewProgramDetailPage() {
     const p0 = rp?.reviewContent?.practiceProblems?.[0];
     return p0?.imageUrl || null;
   }, [rp]);
+  
+  // 🖼️ Phase 2: 현재 메시지의 하이라이트 영역
+  const [currentHighlightRegion, setCurrentHighlightRegion] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    problemNumber?: number;
+  } | null>(null);
 
   // 진행 현황 계산
   const progressInfo = useMemo(() => {
@@ -198,8 +221,29 @@ export default function ReviewProgramDetailPage() {
       if (!res.ok) throw new Error(data.error || '튜터 응답 실패');
       
       if (data.message) {
-        push({ from: 'rang', text: data.message });
+        push({ 
+          from: 'rang', 
+          text: data.message,
+          highlightRegion: data.highlightRegion || null, // 🖼️ Phase 2: 하이라이트 영역 저장
+        });
         lastTutorMessageRef.current = data.message;
+        
+        // 🖼️ Phase 2: 하이라이트 영역 설정 (3초 후 자동 해제)
+        // 이전 timeout cleanup
+        if (highlightTimeoutRef.current) {
+          clearTimeout(highlightTimeoutRef.current);
+          highlightTimeoutRef.current = null;
+        }
+        
+        if (data.highlightRegion) {
+          setCurrentHighlightRegion(data.highlightRegion);
+          highlightTimeoutRef.current = setTimeout(() => {
+            setCurrentHighlightRegion(null);
+            highlightTimeoutRef.current = null;
+          }, 3000);
+        } else {
+          setCurrentHighlightRegion(null);
+        }
         
         // 🤖 AI Agent: 튜터 응답 분석하여 이벤트 수집
         if (studentId !== 'guest' && rp) {
@@ -311,6 +355,12 @@ export default function ReviewProgramDetailPage() {
         const timeSpent = Math.floor((Date.now() - sessionStartTimeRef.current) / 1000);
         trackSessionEnd(studentId, id, timeSpent);
       }
+      
+      // 🖼️ Phase 2: highlightRegion cleanup
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+        highlightTimeoutRef.current = null;
+      }
     };
   }, [studentId, id]);
 
@@ -333,47 +383,6 @@ export default function ReviewProgramDetailPage() {
         </div>
       </header>
 
-      {pageImageUrl ? (
-        <section className={styles.pageImageCard}>
-          <img 
-            className={styles.pageImage} 
-            src={pageImageUrl} 
-            alt="오늘 과외 페이지"
-            onClick={() => {
-              // 이미지 확대 모달 열기
-              const modal = document.createElement('div');
-              modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0, 0, 0, 0.9);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 10000;
-                cursor: pointer;
-              `;
-              const img = document.createElement('img');
-              img.src = pageImageUrl;
-              img.style.cssText = `
-                max-width: 90vw;
-                max-height: 90vh;
-                object-fit: contain;
-                cursor: zoom-out;
-              `;
-              modal.appendChild(img);
-              modal.onclick = () => document.body.removeChild(modal);
-              document.body.appendChild(modal);
-            }}
-            style={{ cursor: 'pointer' }}
-          />
-          <div style={{ fontSize: 12, color: '#666', marginTop: 8, textAlign: 'center' }}>
-            클릭하면 크게 볼 수 있어요
-          </div>
-        </section>
-      ) : null}
 
       {progressInfo && (
         <>
@@ -436,7 +445,46 @@ export default function ReviewProgramDetailPage() {
             </div>
             <div className={styles.avatarName}>{rp.tutor === 'joonssam' ? '준쌤' : '랑쌤'}</div>
           </div>
-          <div className={styles.chatTitle}>복습 수업</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {pageImageUrl && (
+              <div
+                className={styles.imageThumbnail}
+                onClick={() => {
+                  // 이미지 확대 모달 열기
+                  const modal = document.createElement('div');
+                  modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.9);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 10000;
+                    cursor: pointer;
+                  `;
+                  const img = document.createElement('img');
+                  img.src = pageImageUrl;
+                  img.style.cssText = `
+                    max-width: 90vw;
+                    max-height: 90vh;
+                    object-fit: contain;
+                    cursor: zoom-out;
+                  `;
+                  modal.appendChild(img);
+                  modal.onclick = () => document.body.removeChild(modal);
+                  document.body.appendChild(modal);
+                }}
+                title="페이지 이미지 보기"
+              >
+                <img src={pageImageUrl} alt="페이지 썸네일" />
+                <span>📄</span>
+              </div>
+            )}
+            <div className={styles.chatTitle}>복습 수업</div>
+          </div>
         </div>
 
         <div className={styles.chatLog}>
@@ -501,6 +549,48 @@ export default function ReviewProgramDetailPage() {
         )}
 
         <div className={styles.inputRow}>
+          {/* 🖼️ 이미지 썸네일 (입력 필드 왼쪽) */}
+          {pageImageUrl && (
+            <div className={styles.imageThumbnailInRow}>
+              <div
+                className={styles.rowImageThumbnail}
+                onClick={() => {
+                  // 이미지 확대 모달 열기
+                  const modal = document.createElement('div');
+                  modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.9);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 10000;
+                    cursor: pointer;
+                  `;
+                  const img = document.createElement('img');
+                  img.src = pageImageUrl;
+                  img.style.cssText = `
+                    max-width: 90vw;
+                    max-height: 90vh;
+                    object-fit: contain;
+                    cursor: zoom-out;
+                  `;
+                  modal.appendChild(img);
+                  modal.onclick = () => document.body.removeChild(modal);
+                  document.body.appendChild(modal);
+                }}
+                title="페이지 이미지 보기"
+              >
+                <img src={pageImageUrl} alt="과외 페이지" />
+              </div>
+              <div className={styles.rowImageHint}>
+                이미지를 보려면<br />여기를 클릭하세요! 👆
+              </div>
+            </div>
+          )}
           <input
             className={styles.input}
             value={input}

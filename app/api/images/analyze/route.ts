@@ -282,38 +282,57 @@ export async function POST(req: NextRequest) {
 `.trim();
 
     const tryGenerate = async (m: any) => {
-      const r = await m.generateContent({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                inlineData: {
-                  data: base64Image,
-                  mimeType: mimeType,
+      try {
+        const r = await m.generateContent({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    data: base64Image,
+                    mimeType: mimeType,
+                  },
                 },
-              },
-              { text: prompt },
-            ],
-          },
-        ],
-      });
-      const resp: any = r?.response as any;
-      const cand0: any = Array.isArray(resp?.candidates) ? resp.candidates[0] : null;
-      const parts: any[] = Array.isArray(cand0?.content?.parts) ? cand0.content.parts : [];
-      const textOut = (typeof resp?.text === 'function' ? resp.text() : r.response.text()) || '';
-      const hasTextPart = parts.some((p) => typeof p?.text === 'string' && p.text.length > 0);
-      return { r, textOut, hasTextPart, cand0 };
+                { text: prompt },
+              ],
+            },
+          ],
+        });
+        const resp: any = r?.response as any;
+        const cand0: any = Array.isArray(resp?.candidates) ? resp.candidates[0] : null;
+        const parts: any[] = Array.isArray(cand0?.content?.parts) ? cand0.content.parts : [];
+        const textOut = (typeof resp?.text === 'function' ? resp.text() : r.response.text()) || '';
+        const hasTextPart = parts.some((p) => typeof p?.text === 'string' && p.text.length > 0);
+        return { r, textOut, hasTextPart, cand0 };
+      } catch (genError) {
+        console.error('Gemini API 호출 오류:', genError);
+        throw new Error(`AI 모델 호출 실패: ${genError instanceof Error ? genError.message : String(genError)}`);
+      }
     };
 
     let text = '';
     let modelCall: 'json' | 'text_fallback' = 'json';
-    const first = await tryGenerate(modelJson);
-    text = first.textOut;
-    if (!text.trim()) {
-      const second = await tryGenerate(modelText);
-      text = second.textOut;
-      modelCall = 'text_fallback';
+    try {
+      const first = await tryGenerate(modelJson);
+      text = first.textOut;
+      if (!text.trim()) {
+        console.log('[Analyze] JSON 모드 결과 비어있음, 텍스트 모드로 재시도');
+        const second = await tryGenerate(modelText);
+        text = second.textOut;
+        modelCall = 'text_fallback';
+      }
+    } catch (genError) {
+      console.error('[Analyze] 모델 호출 실패:', genError);
+      return NextResponse.json(
+        {
+          error: 'AI 모델 호출에 실패했습니다.',
+          details: process.env.NODE_ENV !== 'production' 
+            ? (genError instanceof Error ? genError.message : String(genError))
+            : undefined,
+        },
+        { status: 500 }
+      );
     }
 
     if (!text.trim()) {
@@ -397,6 +416,84 @@ export async function POST(req: NextRequest) {
       analysis.extractedText = extracted || '';
     }
 
+    // 🔍 OCR 결과 검증: 이미지와 함께 OCR 결과를 재검토하여 정확도 향상
+    if (analysis.extractedText && imageBuffer && analysis.extractedText.trim().length > 50) {
+      try {
+        console.log('[analyze] OCR 결과 검증 시작...');
+        const verificationPrompt = `
+이 이미지와 아래 OCR 결과를 비교하여 검증해주세요:
+
+[OCR로 추출된 텍스트]
+${analysis.extractedText.slice(0, 2000)}${analysis.extractedText.length > 2000 ? '...' : ''}
+
+다음을 수행해주세요:
+1. OCR 결과에 오류나 누락이 있는지 확인
+2. 이미지를 직접 보면서 정확한 텍스트로 수정/보완
+3. 수학 수식, 영어 단어, 한글 등 모든 텍스트를 정확하게 추출
+4. 교재 메타데이터(페이지 번호, 단원명 등)도 포함하여 정확하게 추출
+5. 손글씨나 밑줄 등 학생의 표시는 제외하고 원본 교재 텍스트만 추출
+
+반드시 아래 JSON만 출력하세요:
+{
+  "extractedText": "검증 및 수정된 전체 텍스트 (OCR 오류 수정, 누락 부분 보완)",
+  "corrections": ["수정된 내용 1", "수정된 내용 2"] (선택적, 수정된 부분만 설명)
+}
+`.trim();
+
+        const verificationModel = genAI.getGenerativeModel({
+          model: 'gemini-2.5-pro',
+          safetySettings,
+          generationConfig: {
+            maxOutputTokens: 4096,
+            temperature: 0.1, // 낮은 온도로 정확도 향상
+            responseMimeType: 'application/json',
+          },
+        });
+
+        const verificationResult = await verificationModel.generateContent({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    data: base64Image,
+                    mimeType: mimeType,
+                  },
+                },
+                { text: verificationPrompt },
+              ],
+            },
+          ],
+        });
+
+        const verificationText = verificationResult.response.text();
+        try {
+          const jsonMatch = verificationText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const verified = JSON.parse(jsonMatch[0]);
+            if (verified.extractedText && verified.extractedText.trim().length > analysis.extractedText.trim().length * 0.5) {
+              // 검증된 텍스트가 원본의 50% 이상이면 사용 (너무 짧으면 오류 가능)
+              console.log('[analyze] OCR 검증 완료, 텍스트 개선:', {
+                originalLength: analysis.extractedText.length,
+                verifiedLength: verified.extractedText.length,
+                corrections: verified.corrections || [],
+              });
+              analysis.extractedText = verified.extractedText;
+              // 검증 후 subject도 다시 추정 (더 정확한 텍스트 기반)
+              analysis.subject = analysis.subject || guessSubjectFromText(verified.extractedText);
+            }
+          }
+        } catch (verificationParseError) {
+          console.error('[analyze] OCR 검증 결과 파싱 실패:', verificationParseError);
+          // 검증 실패해도 원본 사용
+        }
+      } catch (verificationError) {
+        console.error('[analyze] OCR 검증 실패:', verificationError);
+        // 검증 실패해도 원본 OCR 결과 사용
+      }
+    }
+
     // 개발 환경에서 분석이 빈 경우 디버그 단서 제공
     const debugInfo =
       process.env.NODE_ENV !== 'production'
@@ -434,8 +531,15 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('이미지 분석 오류:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
     return NextResponse.json(
-      { error: '이미지를 분석하는 중 오류가 발생했습니다.' },
+      { 
+        error: '이미지를 분석하는 중 오류가 발생했습니다.',
+        details: process.env.NODE_ENV !== 'production' ? errorMessage : undefined,
+        stack: process.env.NODE_ENV !== 'production' ? errorStack : undefined,
+      },
       { status: 500 }
     );
   }

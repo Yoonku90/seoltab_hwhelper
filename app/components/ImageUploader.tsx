@@ -101,7 +101,15 @@ export default function ImageUploader({
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || '분석 실패');
+        const errorMsg = data.error || '분석 실패';
+        const details = data.details ? `\n상세: ${data.details}` : '';
+        console.error('이미지 분석 API 오류:', {
+          status: res.status,
+          error: errorMsg,
+          details: data.details,
+          stack: data.stack,
+        });
+        throw new Error(errorMsg + details);
       }
 
       onAnalyzeSuccess?.(data.analysis, imageUrl);

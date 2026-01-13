@@ -185,12 +185,61 @@ function autoWrapLatex(text: string): string {
   return text
 }
 
+// 수학 표현식 패턴을 LaTeX로 변환 (예: "2x+3" → "$2x+3$")
+function convertMathExpressions(text: string): string {
+  if (!text) return text
+  
+  // 이미 $...$로 감싸진 부분은 건드리지 않음
+  const parts: Array<{ text: string; isLatex: boolean }> = []
+  let lastIndex = 0
+  const latexMatches = Array.from(text.matchAll(/\$[^$]+\$/g))
+  
+  latexMatches.forEach((match) => {
+    if (match.index !== undefined && match.index > lastIndex) {
+      parts.push({ text: text.slice(lastIndex, match.index), isLatex: false })
+    }
+    parts.push({ text: match[0], isLatex: true })
+    lastIndex = match.index! + match[0].length
+  })
+  
+  if (lastIndex < text.length) {
+    parts.push({ text: text.slice(lastIndex), isLatex: false })
+  }
+  
+  if (parts.length === 0) {
+    parts.push({ text, isLatex: false })
+  }
+  
+  // 일반 텍스트 부분에서만 수학 표현식 변환
+  return parts.map((part) => {
+    if (part.isLatex) return part.text
+    
+    // 수학 표현식 패턴: 숫자 + 알파벳 변수(선택) + 연산자 + 숫자 + 알파벳 변수(선택)
+    // 예: "2x+3", "x+1", "3x-2", "2x+3=x-1"
+    // HTML 태그 내부는 제외
+    return part.text.replace(/(?<!<[^>]*)(\d*[a-z]+\s*[+\-=<>≤≥≠±×÷]\s*\d*[a-z]*|\d+[a-z]+|[a-z]+\s*[+\-=<>≤≥≠±×÷]\s*\d+)/gi, (match) => {
+      // 이미 LaTeX로 감싸져 있으면 스킵
+      if (match.includes('$')) return match
+      // HTML 태그 내부는 스킵
+      if (match.includes('<') || match.includes('>')) return match
+      // 너무 긴 문장은 스킵 (예: "방정식" 같은 한글 단어)
+      if (match.length > 20) return match
+      // 한글이 포함된 경우 스킵
+      if (/[가-힣]/.test(match)) return match
+      return `$${match.trim()}$`
+    })
+  }).join('')
+}
+
 // 마크다운 + HTML을 처리하고 LaTeX를 렌더링
 function renderContent(text: string): string {
   if (!text) return ''
 
-  // LaTeX 명령어 자동 감싸기 (먼저 처리)
-  let processedText = autoWrapLatex(text)
+  // 수학 표현식 자동 변환 (먼저 처리)
+  let processedText = convertMathExpressions(text)
+  
+  // LaTeX 명령어 자동 감싸기
+  processedText = autoWrapLatex(processedText)
   // 탭 문자는 거의 항상 JSON escape/파손의 부산물이라 제거 (times -> t\times 등)
   processedText = processedText.replace(/\u0009/g, '')
 

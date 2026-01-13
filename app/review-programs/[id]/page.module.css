@@ -52,15 +52,46 @@
   padding: 10px;
   margin-top: 12px;
   overflow: hidden;
+  position: sticky;
+  top: 80px; /* 진행 현황 sticky 아래에 위치 */
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* 태블릿/모바일 반응형 */
+@media (max-width: 768px) {
+  .pageImageCard {
+    top: 70px; /* 모바일에서는 더 위에 */
+    padding: 8px;
+  }
+}
+
+.imageContainer {
+  position: relative;
+  width: 100%;
+  display: block;
 }
 
 .pageImage {
   width: 100%;
   height: auto;
   display: block;
-  max-height: 420px;
+  max-height: 300px; /* sticky로 고정되므로 높이 조정 */
   object-fit: contain;
   background: #fafafa;
+}
+
+/* 태블릿/모바일에서 이미지 높이 조정 */
+@media (max-width: 768px) {
+  .pageImage {
+    max-height: 200px; /* 모바일에서는 더 작게 */
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .pageImage {
+    max-height: 250px; /* 태블릿에서는 중간 크기 */
+  }
 }
 
 .chatCard {
@@ -129,6 +160,87 @@
   font-size: 12px;
   color: #666;
   font-weight: 700;
+}
+
+.imageThumbnail {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid #e4e8f0;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  background: #fafafa;
+}
+
+/* 태블릿/모바일에서 썸네일 크기 조정 */
+@media (max-width: 768px) {
+  .imageThumbnail {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+.imageThumbnail:hover {
+  border-color: #2196f3;
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+}
+
+/* 모바일에서는 호버 효과 대신 active 효과 */
+@media (max-width: 768px) {
+  .imageThumbnail:active {
+    transform: scale(0.95);
+    border-color: #2196f3;
+  }
+}
+
+.imageThumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.imageThumbnail span {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  padding: 1px 3px;
+}
+
+@media (max-width: 768px) {
+  .imageThumbnail span {
+    font-size: 10px;
+    padding: 1px 2px;
+  }
+}
+
+/* 🖼️ Phase 2: 이미지 하이라이트 박스 */
+.highlightBox {
+  position: absolute;
+  border: 3px solid #2196f3;
+  border-radius: 8px;
+  background: rgba(33, 150, 243, 0.15);
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 12px rgba(33, 150, 243, 0.4);
+  animation: highlightPulse 2s ease-in-out;
+}
+
+@keyframes highlightPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
 }
 
 .chatLog {
@@ -209,10 +321,65 @@
 
 .inputRow {
   display: flex;
+  align-items: center;
   gap: 10px;
   padding: 12px;
   background: #fff;
-  border-top: 1px solid #e9eef6;
+}
+
+/* 🖼️ 입력 행 내 이미지 썸네일 */
+.imageThumbnailInRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.rowImageThumbnail {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  border: 2px solid #e9eef6;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fafafa;
+  flex-shrink: 0;
+}
+
+.rowImageThumbnail:hover {
+  border-color: #2196f3;
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+}
+
+.rowImageThumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 썸네일 아래 텍스트 안내 */
+.rowImageHint {
+  font-size: 9px;
+  color: #999;
+  text-align: center;
+  white-space: nowrap;
+  max-width: 50px;
+  line-height: 1.2;
+}
+
+/* 모바일 */
+@media (max-width: 768px) {
+  .rowImageThumbnail {
+    width: 40px;
+    height: 40px;
+  }
+  .rowImageHint {
+    font-size: 8px;
+    max-width: 40px;
+  }
 }
 
 .input {

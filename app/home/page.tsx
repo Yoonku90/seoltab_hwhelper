@@ -406,7 +406,12 @@ export default function HomePage() {
         setIsLoadingProfile(false);
       }
     };
-    if (studentId && studentId !== 'guest') loadStudentProfile();
+    if (studentId && studentId !== 'guest') {
+      loadStudentProfile();
+    } else {
+      // studentId가 없거나 'guest'일 때도 로딩 상태 해제
+      setIsLoadingProfile(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, selectedTutor]); // selectedTutor도 dependency에 추가
 
