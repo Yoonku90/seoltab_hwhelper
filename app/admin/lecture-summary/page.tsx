@@ -1,19 +1,61 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import MarkdownMath from '@/app/components/MarkdownMath';
 import styles from './page.module.css';
 
+function resolveString(value: unknown): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    ) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return typeof parsed === 'string' ? parsed : value;
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+  return value ? JSON.stringify(value) : '';
+}
+
+function normalizeConceptSummary(text: string): string {
+  return text.replace(/^이것만 꼭 알아둬!?\s*/i, '');
+}
+
+function splitNumberedSections(text: string): string[] {
+  const cleaned = text.trim();
+  if (!cleaned) return [];
+
+  const matches = [...cleaned.matchAll(/(?:^|\n)\s*(\d+)\.\s+/g)];
+  if (matches.length <= 1) return [cleaned];
+
+  const sections: string[] = [];
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index ?? 0;
+    const end = i + 1 < matches.length ? (matches[i + 1].index ?? cleaned.length) : cleaned.length;
+    const slice = cleaned.slice(start, end).trim();
+    if (slice) sections.push(slice);
+  }
+  return sections.length > 0 ? sections : [cleaned];
+}
+
 export default function LectureSummaryPage() {
   const router = useRouter();
+  const cardScrollRef = useRef<HTMLDivElement | null>(null);
   const searchParams = useSearchParams();
   const [roomId, setRoomId] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summaryResult, setSummaryResult] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<'full' | 'cards'>('full');
 
   const handleGenerateSummary = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,8 +257,110 @@ export default function LectureSummaryPage() {
                 )}
               </div>
 
+              <div className={styles.viewToggle}>
+                <button
+                  className={`${styles.toggleBtn} ${viewMode === 'full' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => setViewMode('full')}
+                >
+                  전체 보기
+                </button>
+                <button
+                  className={`${styles.toggleBtn} ${viewMode === 'cards' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => setViewMode('cards')}
+                >
+                  카드뉴스 보기
+                </button>
+              </div>
+
+              {viewMode === 'cards' && (
+                <div className={styles.phoneFrame}>
+                  <div className={styles.phoneScreen}>
+                    <div className={styles.cardControls}>
+                      <button
+                        className={styles.cardNavBtn}
+                        type="button"
+                        onClick={() =>
+                          cardScrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })
+                        }
+                      >
+                        ◀
+                      </button>
+                      <div className={styles.cardHintText}>
+                        PC에서는 휠/드래그 또는 버튼으로 넘겨주세요
+                      </div>
+                      <button
+                        className={styles.cardNavBtn}
+                        type="button"
+                        onClick={() =>
+                          cardScrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })
+                        }
+                      >
+                        ▶
+                      </button>
+                    </div>
+                    <div className={styles.cardCarousel} ref={cardScrollRef}>
+                  {[
+                    summaryResult.summary?.teacherMessage
+                      ? { title: '💬 쌤의 한마디', body: resolveString(summaryResult.summary.teacherMessage) }
+                      : null,
+                    ...(summaryResult.summary?.detailedContent || summaryResult.summary?.conceptSummary
+                      ? splitNumberedSections(
+                          resolveString(
+                            summaryResult.summary?.detailedContent ||
+                              normalizeConceptSummary(resolveString(summaryResult.summary?.conceptSummary || ''))
+                          )
+                        ).map((section, idx) => ({
+                          title: `📖 오늘 수업 핵심 정리 ${idx + 1}`,
+                          body: section,
+                        }))
+                      : []),
+                    summaryResult.summary?.textbookHighlight
+                      ? { title: '📖 쌤 Tip', body: resolveString(summaryResult.summary.textbookHighlight) }
+                      : null,
+                    summaryResult.summary?.missedParts && summaryResult.summary.missedParts.length > 0
+                      ? {
+                          title: '❓ 학생 질문 정리',
+                          body: summaryResult.summary.missedParts
+                            .map((part: any) => {
+                              const lines = [
+                                part.question ? `• 질문: ${part.question}` : '',
+                                part.contextMeaning ? `  - 문맥: ${part.contextMeaning}` : '',
+                                part.whatNotUnderstood ? `  - 모르던 부분: ${part.whatNotUnderstood}` : '',
+                                part.whatToKnow ? `  - 알아야 할 것: ${part.whatToKnow}` : '',
+                                part.explanation ? `  - 설명: ${part.explanation}` : '',
+                              ].filter(Boolean);
+                              return lines.join('\n');
+                            })
+                            .join('\n\n'),
+                        }
+                      : null,
+                    summaryResult.imagesUsed && summaryResult.imagesUsed.length > 0
+                      ? {
+                          title: '🖼️ 수업 교재 이미지',
+                          body: summaryResult.imagesUsed.map((url: string, idx: number) => `이미지 ${idx + 1}: ${url}`).join('\n'),
+                        }
+                      : null,
+                    summaryResult.summary?.encouragement
+                      ? { title: '✨ 마무리 응원', body: summaryResult.summary.encouragement }
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .map((card: any, idx: number) => (
+                      <div key={idx} className={styles.cardItem}>
+                        <div className={styles.cardTitle}>{card.title}</div>
+                        <div className={styles.cardBody}>
+                          <MarkdownMath content={card.body} />
+                        </div>
+                        <div className={styles.cardHint}>좌우로 넘겨서 보기 →</div>
+                      </div>
+                    ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 쌤의 한마디 */}
-              {summaryResult.summary?.teacherMessage && (
+              {viewMode === 'full' && summaryResult.summary?.teacherMessage && (
                 <div className={styles.teacherMessage}>
                   <h5>💬 쌤의 한마디</h5>
                   <MarkdownMath content={summaryResult.summary.teacherMessage} />
@@ -224,14 +368,34 @@ export default function LectureSummaryPage() {
               )}
 
               {/* UNIT 제목 */}
-              {summaryResult.summary?.unitTitle && (
+              {viewMode === 'full' && summaryResult.summary?.unitTitle && (
                 <div className={styles.unitTitle}>
                   <h4>{summaryResult.summary.unitTitle}</h4>
                 </div>
               )}
 
+              {viewMode === 'full' && summaryResult.imagesUsed && summaryResult.imagesUsed.length > 0 && (
+                <div className={styles.textbookHighlight}>
+                  <h5>🖼️ 수업 교재 이미지</h5>
+                  <div className={styles.imageGrid}>
+                    {summaryResult.imagesUsed.map((url: string, idx: number) => (
+                      <a
+                        key={idx}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.imageItem}
+                      >
+                        <img src={url} alt={`교재 이미지 ${idx + 1}`} />
+                        <span>이미지 {idx + 1}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* 오늘 수업 핵심 정리 (통합) */}
-              {(summaryResult.summary?.detailedContent || summaryResult.summary?.conceptSummary) && (
+              {viewMode === 'full' && (summaryResult.summary?.detailedContent || summaryResult.summary?.conceptSummary) && (
                 <div className={styles.detailedContent}>
                   <h5>📖 오늘 수업 핵심 정리</h5>
                   <div className={styles.detailedText}>
@@ -261,7 +425,7 @@ export default function LectureSummaryPage() {
               )}
 
               {/* 교재 강조 부분 */}
-              {summaryResult.summary?.textbookHighlight && (
+              {viewMode === 'full' && summaryResult.summary?.textbookHighlight && (
                 <div className={styles.textbookHighlight}>
                   <h5>📖 쌤 Tip</h5>
                   <MarkdownMath 
@@ -287,7 +451,7 @@ export default function LectureSummaryPage() {
               )}
 
               {/* 학생 질문 정리 */}
-              {summaryResult.summary?.missedParts && summaryResult.summary.missedParts.length > 0 && (
+              {viewMode === 'full' && summaryResult.summary?.missedParts && summaryResult.summary.missedParts.length > 0 && (
                 <div className={styles.missedParts}>
                   <h5>❓ 학생 질문 정리</h5>
                   {summaryResult.summary.missedParts.map((part: any, idx: number) => (
@@ -324,7 +488,7 @@ export default function LectureSummaryPage() {
               {summaryResult.summary?.todayMission && false}
 
               {/* 격려 메시지 */}
-              {summaryResult.summary?.encouragement && (
+              {viewMode === 'full' && summaryResult.summary?.encouragement && (
                 <div className={styles.encouragement}>
                   <MarkdownMath content={summaryResult.summary.encouragement} />
                 </div>

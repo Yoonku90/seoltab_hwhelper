@@ -846,6 +846,112 @@
   color: #333;
 }
 
+.viewModeToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px 0;
+}
+
+.activeViewBtn,
+.inactiveViewBtn {
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.activeViewBtn {
+  border: 1px solid #ff6b6b;
+  background: #ff6b6b;
+  color: #fff;
+}
+
+.inactiveViewBtn {
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  color: #666;
+}
+
+.phoneFrame {
+  background: #111;
+  border-radius: 28px;
+  padding: 12px;
+  width: min(360px, 100%);
+  margin: 0 auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+.phoneScreen {
+  background: #fefefe;
+  border-radius: 20px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.cardControls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.cardNavBtn {
+  border: 1px solid #e4e4e4;
+  background: #fff;
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.cardHintText {
+  font-size: 11px;
+  color: #777;
+  text-align: center;
+}
+
+.cardCarousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 8px;
+}
+
+.cardItem {
+  min-width: 260px;
+  max-width: 260px;
+  background: #fff;
+  border: 1px solid #ececec;
+  border-radius: 16px;
+  padding: 16px;
+  scroll-snap-align: start;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.cardTitle {
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: #222;
+}
+
+.cardBody {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #333;
+}
+
+.cardHint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #888;
+  text-align: right;
+}
+
 .imageGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

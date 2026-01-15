@@ -18,6 +18,12 @@ export default function AdminDashboard() {
           <div className={styles.menuDesc}>Room ID로 요약본 확인, 학습 완료 버튼</div>
         </Link>
 
+        <Link href="/admin/summaries" className={styles.menuCard}>
+          <div className={styles.menuIcon}>📋</div>
+          <div className={styles.menuTitle}>요약본 목록</div>
+          <div className={styles.menuDesc}>생성된 요약본 리스트 확인</div>
+        </Link>
+
         <Link href="/admin/lecture" className={styles.menuCard}>
           <div className={styles.menuIcon}>🎤</div>
           <div className={styles.menuTitle}>수업 STT</div>

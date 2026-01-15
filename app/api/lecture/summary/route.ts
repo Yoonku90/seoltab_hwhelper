@@ -1055,6 +1055,7 @@ ${sttSummary}${conceptKeywords}
       reviewProgramId: insertResult.insertedId.toString(),
       summary: summaryData,
       roomId,
+      imagesUsed: imagesToUse,
       studentId: studentId || null,
       studentName: studentName || null,
       studentNickname: studentNickname || null,

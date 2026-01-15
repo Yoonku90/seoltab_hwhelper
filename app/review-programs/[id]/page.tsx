@@ -115,6 +115,46 @@ type ChatMsg = {
   } | null;
 };
 
+function resolveString(value: unknown): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    ) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return typeof parsed === 'string' ? parsed : value;
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+  return value ? JSON.stringify(value) : '';
+}
+
+function normalizeConceptSummary(text: string): string {
+  return text.replace(/^이것만 꼭 알아둬!?\s*/i, '');
+}
+
+function splitNumberedSections(text: string): string[] {
+  const cleaned = text.trim();
+  if (!cleaned) return [];
+
+  const matches = [...cleaned.matchAll(/(?:^|\n)\s*(\d+)\.\s+/g)];
+  if (matches.length <= 1) return [cleaned];
+
+  const sections: string[] = [];
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index ?? 0;
+    const end = i + 1 < matches.length ? (matches[i + 1].index ?? cleaned.length) : cleaned.length;
+    const slice = cleaned.slice(start, end).trim();
+    if (slice) sections.push(slice);
+  }
+  return sections.length > 0 ? sections : [cleaned];
+}
+
 export default function ReviewProgramDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -136,11 +176,13 @@ export default function ReviewProgramDetailPage() {
     awaiting: 'none',
   });
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const cardScrollRef = useRef<HTMLDivElement | null>(null);
   const didInitTutorRef = useRef(false);
   
   // 🤖 AI 에이전트: 학생 프로필
   const [studentName, setStudentName] = useState<string>('');
   const [studentId, setStudentId] = useState<string>(urlStudentId || 'guest');
+  const [viewMode, setViewMode] = useState<'full' | 'card'>('full');
   
   // 🤖 AI Agent: 세션 추적
   const sessionStartTimeRef = useRef<number>(Date.now());
@@ -453,6 +495,211 @@ export default function ReviewProgramDetailPage() {
 
   if (loading) return <div className={styles.container}>로딩 중...</div>;
   if (!rp) return <div className={styles.container}>복습 프로그램을 찾을 수 없어요.</div>;
+
+  const isSecretNote = !!(rp.metadata?.isSecretNote && rp.reviewContent);
+  const summaryContent = rp.reviewContent || {};
+
+  if (isSecretNote) {
+    const mergedSummary = resolveString(
+      summaryContent.detailedContent ||
+        normalizeConceptSummary(resolveString(summaryContent.conceptSummary || ''))
+    );
+    const summarySections = splitNumberedSections(mergedSummary);
+    const imageSectionAvailable = !!(
+      rp.metadata?.imageUrls?.length ||
+      rp.metadata?.roomId
+    );
+
+    const cardItems = [
+      summaryContent.teacherMessage
+        ? { title: '💬 쌤의 한마디', body: resolveString(summaryContent.teacherMessage) }
+        : null,
+      ...summarySections.map((section, idx) => ({
+        title: `📖 오늘 수업 핵심 정리 ${idx + 1}`,
+        body: section,
+      })),
+      summaryContent.textbookHighlight
+        ? { title: '📖 쌤 Tip', body: resolveString(summaryContent.textbookHighlight) }
+        : null,
+      summaryContent.missedParts && summaryContent.missedParts.length > 0
+        ? {
+            title: '❓ 학생 질문 정리',
+            body: summaryContent.missedParts
+              .map(
+                (part: any) =>
+                  `**질문:** ${part.question}\n**문맥:** ${part.contextMeaning || '없음'}\n**몰랐던 부분:** ${part.whatNotUnderstood || '없음'}\n**알아야 할 것:** ${part.whatToKnow || '없음'}\n**설명:** ${part.explanation || '없음'}`
+              )
+              .join('\n\n'),
+          }
+        : null,
+      imageSectionAvailable
+        ? { title: '🖼️ 수업 교재 이미지', body: '아래 카드에서 확인 가능' }
+        : null,
+      summaryContent.encouragement
+        ? { title: '✨ 마무리 응원', body: resolveString(summaryContent.encouragement) }
+        : null,
+    ].filter(Boolean) as Array<{ title: string; body: string }>;
+
+    return (
+      <div className={styles.container}>
+        <header className={styles.header}>
+          <button className={styles.backBtn} onClick={() => router.push('/home')}>
+            ← 홈
+          </button>
+          <div>
+            <h1 className={styles.title}>{rp.title}</h1>
+            <div className={styles.meta}>
+              {studentName && <span className={styles.studentTag}>👋 {studentName}</span>}
+              {rp.studentId ? `ID: ${rp.studentId}` : ''}
+              {rp.createdAt ? `· ${new Date(rp.createdAt).toLocaleString('ko-KR')}` : ''}
+            </div>
+          </div>
+        </header>
+
+        <section className={styles.summarySection}>
+          <div className={styles.summaryCard}>
+            <h2 className={styles.summaryTitle}>✨ 유은서 쌤이 방금 만든 따끈따끈한 비법 노트!</h2>
+
+            <div className={styles.viewModeToggle}>
+              <button
+                className={viewMode === 'full' ? styles.activeViewBtn : styles.inactiveViewBtn}
+                onClick={() => setViewMode('full')}
+              >
+                전체 보기
+              </button>
+              <button
+                className={viewMode === 'card' ? styles.activeViewBtn : styles.inactiveViewBtn}
+                onClick={() => setViewMode('card')}
+              >
+                카드뉴스 보기
+              </button>
+            </div>
+
+            {viewMode === 'card' ? (
+              <div className={styles.phoneFrame}>
+                <div className={styles.phoneScreen}>
+                  <div className={styles.cardControls}>
+                    <button
+                      className={styles.cardNavBtn}
+                      type="button"
+                      onClick={() =>
+                        cardScrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })
+                      }
+                    >
+                      ◀
+                    </button>
+                    <div className={styles.cardHintText}>
+                      PC에서는 휠/드래그 또는 버튼으로 넘겨주세요
+                    </div>
+                    <button
+                      className={styles.cardNavBtn}
+                      type="button"
+                      onClick={() =>
+                        cardScrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })
+                      }
+                    >
+                      ▶
+                    </button>
+                  </div>
+                  <div className={styles.cardCarousel} ref={cardScrollRef}>
+                    {cardItems.map((card, idx) => (
+                      <div key={idx} className={styles.cardItem}>
+                        <div className={styles.cardTitle}>{card.title}</div>
+                        <div className={styles.cardBody}>
+                          <MarkdownMath content={card.body} />
+                        </div>
+                        <div className={styles.cardHint}>좌우로 넘겨서 보기 →</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {summaryContent.teacherMessage && (
+                  <div className={styles.teacherMessage}>
+                    <h3>💬 쌤의 한마디</h3>
+                    <MarkdownMath content={resolveString(summaryContent.teacherMessage)} />
+                  </div>
+                )}
+
+                {summaryContent.unitTitle && (
+                  <div className={styles.unitTitle}>
+                    <h3>{summaryContent.unitTitle}</h3>
+                  </div>
+                )}
+
+                {mergedSummary && (
+                  <div className={styles.conceptSummary}>
+                    <h3>📖 오늘 수업 핵심 정리</h3>
+                    <div className={styles.conceptText}>
+                      <MarkdownMath content={mergedSummary} />
+                    </div>
+                  </div>
+                )}
+
+                {summaryContent.textbookHighlight && (
+                  <div className={styles.textbookHighlight}>
+                    <h3>📖 쌤 Tip</h3>
+                    <MarkdownMath content={resolveString(summaryContent.textbookHighlight)} />
+                  </div>
+                )}
+
+                {summaryContent.missedParts && summaryContent.missedParts.length > 0 && (
+                  <div className={styles.missedParts}>
+                    <h3>❓ 학생 질문 정리</h3>
+                    {summaryContent.missedParts.map((part: any, idx: number) => (
+                      <div key={idx} className={styles.missedPartItem}>
+                        <p className={styles.missedQuestion}>
+                          <strong>질문:</strong> {part.question}
+                        </p>
+                        {part.contextMeaning && (
+                          <p className={styles.missedExplanation}>
+                            <strong>문맥:</strong> {part.contextMeaning}
+                          </p>
+                        )}
+                        {part.whatNotUnderstood && (
+                          <p className={styles.missedExplanation}>
+                            <strong>모르던 부분:</strong> {part.whatNotUnderstood}
+                          </p>
+                        )}
+                        {part.whatToKnow && (
+                          <p className={styles.missedExplanation}>
+                            <strong>알아야 할 것:</strong> {part.whatToKnow}
+                          </p>
+                        )}
+                        {part.explanation && (
+                          <p className={styles.missedExplanation}>
+                            <strong>설명:</strong> {part.explanation}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {summaryContent.encouragement && (
+                  <div className={styles.encouragement}>
+                    <MarkdownMath content={resolveString(summaryContent.encouragement)} />
+                  </div>
+                )}
+
+                {imageSectionAvailable && (
+                  <div className={styles.summaryImages}>
+                    <h3>🖼️ 수업 교재 이미지</h3>
+                    <SummaryImages
+                      roomId={rp.metadata?.roomId}
+                      imageUrls={rp.metadata?.imageUrls}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
