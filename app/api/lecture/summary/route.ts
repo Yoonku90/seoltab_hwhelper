@@ -89,7 +89,7 @@ async function downloadAndConvertImage(imageUrl: string): Promise<{ buffer: Buff
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { roomId } = body;
+    const { roomId, grade } = body;
 
     if (!roomId) {
       return NextResponse.json(
@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
 
     // STT 처리 (병렬로 이미 로드됨)
     let sttText = null;
-    let missedParts: Array<{question: string, studentResponse: string, correctAnswer?: string, explanation?: string}> = [];
+    let missedParts: Array<{question: string; studentResponse?: string; correctAnswer?: string; explanation?: string}> = [];
     let fullConversation: Conversation[] = [];
     
     if (sttPromise.status === 'fulfilled') {
@@ -263,41 +263,46 @@ export async function POST(req: NextRequest) {
           .map((conv) => `[${conv.speaker}]: ${conv.text}`)
           .join('\n');
 
-        // 학생이 놓친 부분 분석
+        // 학생 질문 추출 (꼽주지 않고, 궁금했던 내용 정리)
         missedParts = [];
-        for (let i = 0; i < fullConversation.length - 1; i++) {
+        const isStudent = (speaker?: string) =>
+          speaker === 'student' || speaker === '학생' || speaker?.includes('student') || speaker?.includes('학생');
+        const isTeacher = (speaker?: string) =>
+          speaker === 'teacher' || speaker === '선생님' || speaker?.includes('teacher') || speaker?.includes('선생');
+        const looksLikeQuestion = (text: string) => {
+          const t = text.toLowerCase();
+          return (
+            t.includes('?') ||
+            t.includes('어떻게') ||
+            t.includes('왜') ||
+            t.includes('뭐야') ||
+            t.includes('뭐예요') ||
+            t.includes('뭔가요') ||
+            t.includes('무슨') ||
+            t.includes('어떤') ||
+            t.includes('언제') ||
+            t.includes('어디') ||
+            t.includes('몇') ||
+            t.includes('가능해') ||
+            t.includes('되나요') ||
+            t.includes('모르겠')
+          );
+        };
+
+        for (let i = 0; i < fullConversation.length; i++) {
           const current = fullConversation[i];
-          const next = fullConversation[i + 1];
-          
-          if (
-            (current.speaker === 'teacher' || current.speaker === '선생님' || current.speaker?.includes('teacher') || current.speaker?.includes('선생')) &&
-            (next.speaker === 'student' || next.speaker === '학생' || next.speaker?.includes('student') || next.speaker?.includes('학생'))
-          ) {
-            const teacherText = current.text.toLowerCase();
-            const studentText = next.text.toLowerCase();
-            
-            const isQuestion = teacherText.includes('?') || 
-                              teacherText.includes('어떻게') || 
-                              teacherText.includes('뭐야') ||
-                              teacherText.includes('알지') ||
-                              teacherText.includes('기억나') ||
-                              teacherText.includes('뭐지');
-            
-            const isUncertain = studentText.includes('음') || 
-                                studentText.includes('어') ||
-                                studentText.includes('모르') ||
-                                studentText.includes('잘 모르') ||
-                                studentText.length < 5 ||
-                                (studentText.includes('아니') && !studentText.includes('맞아')) ||
-                                studentText.includes('틀렸') ||
-                                studentText.includes('헷갈');
-            
-            if (isQuestion && isUncertain) {
-              missedParts.push({
-                question: current.text,
-                studentResponse: next.text,
-              });
+          if (isStudent(current.speaker) && looksLikeQuestion(current.text)) {
+            let teacherReply = '';
+            for (let j = i + 1; j < fullConversation.length; j++) {
+              if (isTeacher(fullConversation[j].speaker)) {
+                teacherReply = fullConversation[j].text;
+                break;
+              }
             }
+            missedParts.push({
+              question: current.text,
+              explanation: teacherReply,
+            });
           }
         }
       }
@@ -375,12 +380,12 @@ export async function POST(req: NextRequest) {
 
     // 프롬프트 생성
     const displayName = studentNickname || studentName || null;
+    const gradeLabel = typeof grade === 'string' && grade.trim().length > 0 ? grade.trim() : null;
     const prompt = `당신은 서울대 자습관리 선생님 유은서 선생님입니다. ${displayName ? `${displayName}이(가) 방금 끝난 수업` : '방금 끝난 수업'}의 내용을 정확히 정리해서, ${displayName ? `${displayName}이(가)` : '학생이'} 이 요약본만 보면 수업을 다 한눈에 볼 수 있도록 완벽하게 정리해주세요.
 
 **유은서 쌤의 말투 규칙 (랑쌤/준쌤 페르소나 참고):**
 - 친근하고 따뜻한 반말 사용 ("~야", "~지", "~해", "~거야")
 - "불안해하지 마, 이것만 꼭 기억해!" 같은 격려하는 톤
-- "아까 네가 대답 못 했던 그 문제"처럼 구체적으로 언급
 - "10분만 투자하면 4배 효과" 같은 효율 강조
 - 랑쌤/준쌤처럼 친근하고 상냥하게, 학생을 친구처럼 대하면서도 선생님답게
 - 이름을 부를 때는 **성 없이 이름만** 부르기 (예: "소유찬" → "유찬아", "김철수" → "철수야")
@@ -389,12 +394,13 @@ ${displayName ? `- ${displayName}아(야)라고 직접 이름을 불러주기 (�
 **학생 정보:**
 ${studentName ? `- 이름: ${studentName}` : ''}
 ${studentId ? `- 학생 ID: ${studentId}` : ''}
+${gradeLabel ? `- 학년: ${gradeLabel}` : ''}
 
 **과목:** ${subject}
 ${tutoringDatetime ? `**수업 날짜:** ${new Date(tutoringDatetime).toLocaleDateString('ko-KR')}\n` : ''}
 
 ${sttText ? `**수업 대화 내용 (STT):**\n${sttText}\n\n` : ''}
-${missedParts.length > 0 ? `**학생이 놓친 부분 (STT 분석):**\n${missedParts.map((m, idx) => `${idx + 1}. 선생님: "${m.question}" → 학생: "${m.studentResponse}"`).join('\n')}\n\n` : ''}
+${missedParts.length > 0 ? `**학생 질문 정리 (STT 기반):**\n${missedParts.map((m, idx) => `${idx + 1}. 질문: "${m.question}"${m.explanation ? ` → 설명: "${m.explanation}"` : ''}`).join('\n')}\n\n` : ''}
 ${images.length > 0 ? `**교재 이미지:** ${images.length}개 이미지가 제공됩니다.
 
 ${!sttText ? `⚠️ **중요:** STT가 없으므로 이미지만으로 수업 내용을 파악해야 합니다.
@@ -440,67 +446,57 @@ ${!sttText ? `⚠️ **중요:** STT가 없으므로 이미지만으로 수업 �
    - STT에서 선생님이 강조한 핵심 부분만 언급 (너무 길지 않게)
    - 수업 중 선생님이 말한 핵심 표현이나 예시만 포함
 
-3. **이것만 꼭 알아둬!** (핵심 개념 정리 - 수업에서 실제로 다룬 것만):
-   - 수업에서 **정말로 다룬 핵심 개념들**만 선별하여 정리 (3-5개 정도)
-   - 각 개념을 간결하게, 하지만 이해할 수 있게 정리 (너무 짧지 않게, 너무 길지 않게)
-   - 교재 이미지의 핵심 표/그림만 언급 ("아까 쌤이 엄청 강조하셨던 이 표, 기억하지?")
+3. **📖 오늘 수업 핵심 정리** (개념 + 흐름 통합, 한 섹션으로):
+   - **중요:** 제목 문구를 넣지 말고 **본문만** 작성
+   - 수업에서 **정말로 다룬 핵심 개념들**만 선별하여 정리 (3-6개 정도)
+   - 각 개념을 간결하게, 하지만 이해할 수 있게 설명 (너무 짧지 않게, 너무 길지 않게)
+   - 수업 흐름의 **핵심 순서**를 자연스럽게 녹여서 정리
+   - 교재 이미지에 의존하지 말고, **텍스트만 봐도 이해되게** 풀어쓰기
    - 수업 중 나온 핵심 예시나 비유만 포함
-   - 각 개념마다 핵심 포인트 1-2줄로 정리
    - 수업 중 다룬 문제 중에서 가장 중요한 것만 언급
+   - **학습 보충**: 수업 내용 기반으로 꼭 필요한 규칙/정리 1~2줄 추가 (정확한 범위 내)
 
-4. **📖 오늘 수업 핵심 정리** (수업 흐름의 핵심만):
-   - 수업 시작부터 끝까지의 **핵심 흐름**만 정리 (모든 내용을 다루지 말고, 정말 중요한 것만)
-   - 선생님이 **강조한 핵심 설명**만 포함
-   - 풀었던 문제 중에서 **가장 중요한 문제**만 언급
-   - 선생님이 **반드시 기억하라고 한 포인트**만 정리
-   - "쌤이 이렇게 설명하셨지?" 같은 구체적인 언급은 핵심만
-   - **한 페이지 분량**: 너무 짧지 않게, 하지만 한 눈에 보기 좋게 (A4 한 장 분량 고려)
-
-5. **⚠️ 아까 ${displayName ? displayName : '네가'} 놓친 부분** (STT 분석 기반 - 핵심만):
+4. **❓ 학생 질문 정리** (STT 기반 - 핵심만):
    ${missedParts.length > 0 ? `
-   - 학생이 대답 못했거나 오답한 **핵심 구간**만 정확히 짚어주기 (모든 놓친 부분을 다루지 말고)
-   ${displayName ? `- "${displayName}아, 아까 쌤이 [질문] 했을 때 바로 대답 못 했지?"` : '- "아까 쌤이 [질문] 했을 때 바로 대답 못 했지?"'}
-   - 정답과 이유를 핵심만 간결하게 설명 (너무 길지 않게)
-   - "그때 쌤이 이거 헷갈리면 등급 깎인다고 하셨으니까 지금 확실히 외우자!"
-   - 각 놓친 부분에 대해 수업 중 선생님이 한 핵심 설명만 반영
+   - 학생이 **궁금해했던 질문**만 모아 정리
+   - 꼽주거나 비난하는 말투는 **절대 사용하지 말 것**
+   - 질문이 나온 **문맥/의미**를 짧게 설명
+   - 학생이 **뭘 몰랐던 건지**, 그리고 **무엇을 알아야 하는지**를 1~2줄로 정리
    ` : `
-   - STT 분석 결과 놓친 부분이 없으면 이 섹션은 생략
+   - STT 분석 결과 질문이 없으면 이 섹션은 생략
    `}
-
-6. **🎯 오늘의 미션** (행동 유도):
-   ${displayName ? `- "${displayName}아, 자기 전에 위 표 한 번만 더 보고, [핵심 문장] 세 번 읽고 자기! (10초 컷!)"` : '- "자기 전에 위 표 한 번만 더 보고, [핵심 문장] 세 번 읽고 자기! (10초 컷!)"'}
-   - 간단하고 실행 가능한 미션
-   - 수업 중 선생님이 내준 숙제나 다음 시간 준비사항이 있으면 포함
 
 **요구사항 (매우 중요):**
 - **핵심만, 하지만 한 페이지로 복기 가능하게**: 이 요약본만 보면 수업의 핵심을 다시 한 번 복기할 수 있어야 함
 - 한 페이지, 10분 안에 읽을 수 있는 분량 (A4 한 장 기준)
 - **수업에서 정말로 다룬 핵심 내용만** 포함 (모든 내용을 다루지 말고, 중요한 것만 선별)
 - STT에서 선생님이 **강조한 핵심 설명**만 반영 (모든 설명을 다 담지 말고)
-- 교재 이미지의 **핵심 표/그림/문제**만 언급 (모든 이미지 내용을 다 설명하지 말고)
+- 교재 이미지를 전제로 하지 말고, **텍스트만으로도 학습 가능하게** 설명
 - 수업 중 풀었던 문제 중에서 **가장 중요한 문제**만 언급
 - **너무 짧지 않게, 너무 길지 않게**: 한 페이지 분량으로, 핵심이 빠지지 않도록
 - ${displayName ? `${displayName}아(야)라고 이름을 자연스럽게 부르며 개인화 (성 없이 이름만)` : '학생을 직접적으로 언급하며 개인화'}
 - "투입 절반, 효과 4배" 같은 효율 메시지 자연스럽게 포함
 - **선별과 집중**: 모든 것을 담으려 하지 말고, 정말 중요한 것만, 하지만 그 중요한 것들은 충분히 설명
+${gradeLabel ? `- **학년 수준에 맞게** 설명의 난이도와 예시를 조절 (${gradeLabel} 기준)` : ''}
+- **영어 수업일 경우 보충 규칙 포함**: 비교급/최상급 형성 규칙(-er/-est, more/most), than/the 사용, y→i, 단모음+자음 doubling, 불규칙 변화(good/better/best, bad/worse/worst, far/farther/farthest) 등 핵심을 짧게 정리
 
 **출력 형식 (순수 JSON만 - 코드 블록(\`\`\`) 없이 바로 JSON 객체로 응답):**
 {
   "title": "[유은서 쌤이 방금 만든 따끈따끈한 비법 노트!]",
   "teacherMessage": "쌤의 한마디 (도입부, 격려 메시지, ${displayName ? `${displayName}아(야)라고 이름 부르기 (성 없이 이름만)` : '학생 이름 언급'})",
   "unitTitle": "UNIT 01. [단원명]",
-  "conceptSummary": "이것만 꼭 알아둬! (수업에서 정말로 다룬 핵심 개념만 선별하여 정리, 각각 2-3줄 정도, 3-5개 정도, 너무 짧지 않게)",
-  "detailedContent": "📖 오늘 수업 핵심 정리 (수업 흐름의 핵심만, 선생님이 강조한 핵심 설명과 가장 중요한 문제만 언급, 한 페이지 분량으로 적절하게)",
-  "textbookHighlight": "교재 강조 부분 (핵심 표/그림만 언급, '아까 쌤이 엄청 강조하셨던 이 표, 기억하지?' 스타일, 간결하게)",
+  "conceptSummary": "",
+  "detailedContent": "오늘 수업 핵심 정리 본문만 (개념 + 흐름 통합, 한 섹션). 텍스트만 보고 이해 가능하게 작성",
+  "textbookHighlight": "쌤 Tip 본문만 (이미지 없이도 이해되도록 텍스트로 설명, 핵심 규칙/정리만 간결하게)",
   "missedParts": ${missedParts.length > 0 ? `[
     {
-      "question": "선생님이 한 핵심 질문 (가장 중요한 것만)",
-      "studentResponse": "학생의 대답 (또는 대답 못함)",
-      "correctAnswer": "정답",
-      "explanation": "왜 이게 정답인지 핵심만 설명 (간결하게)"
+      "question": "학생이 궁금해했던 질문",
+      "contextMeaning": "질문이 나온 문맥/의미 요약",
+      "whatNotUnderstood": "학생이 몰랐던 핵심 포인트",
+      "whatToKnow": "이번에 꼭 알아야 할 핵심 개념",
+      "explanation": "핵심 설명 (1~2줄, 꼽주지 않기)"
     }
   ]` : '[]'},
-  "todayMission": "오늘의 미션 (간단한 행동 유도, 예: '자기 전에 위 표 한 번만 더 보고, Dinner is being cooked 세 번 읽고 자기! (10초 컷!)')",
   "encouragement": "마무리 격려 메시지 (예: '벌써 다 봤어? 역시 빠르네! 이 기세로 숙제 시간도 반으로 확 줄여버리자.')"
 }
 
@@ -887,6 +883,27 @@ ${sttSummary}${conceptKeywords}
         }
       }
     }
+
+    // conceptSummary/detailedContent 중복 방지 및 제목 제거
+    const stripHeading = (text: string, heading: RegExp) => text.replace(heading, '').trim();
+    if (summaryData.conceptSummary && typeof summaryData.conceptSummary === 'string') {
+      summaryData.conceptSummary = stripHeading(summaryData.conceptSummary, /^이것만 꼭 알아둬!?\s*/i);
+    }
+    if (summaryData.detailedContent && typeof summaryData.detailedContent === 'string') {
+      summaryData.detailedContent = stripHeading(summaryData.detailedContent, /^📖?\s*오늘\s*수업\s*핵심\s*정리\s*/i);
+    }
+
+    // 핵심 정리 통합 (conceptSummary + detailedContent)
+    const combinedCore = [summaryData.conceptSummary, summaryData.detailedContent]
+      .filter((v: any) => typeof v === 'string' && v.trim().length > 0)
+      .join('\n\n');
+    if (combinedCore) {
+      summaryData.detailedContent = combinedCore;
+      summaryData.conceptSummary = '';
+    }
+
+    // todayMission은 POC에서 숨김
+    summaryData.todayMission = '';
 
     // 5. 요약본 저장
     const reviewPrograms = await Collections.reviewPrograms();

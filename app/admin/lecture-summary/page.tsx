@@ -230,28 +230,28 @@ export default function LectureSummaryPage() {
                 </div>
               )}
 
-              {/* 이것만 꼭 알아둬! */}
-              {summaryResult.summary?.conceptSummary && (
-                <div className={styles.conceptSummary}>
-                  <h5>💡 이것만 꼭 알아둬!</h5>
-                  <div className={styles.conceptText}>
+              {/* 오늘 수업 핵심 정리 (통합) */}
+              {(summaryResult.summary?.detailedContent || summaryResult.summary?.conceptSummary) && (
+                <div className={styles.detailedContent}>
+                  <h5>📖 오늘 수업 핵심 정리</h5>
+                  <div className={styles.detailedText}>
                     <MarkdownMath 
                       content={(() => {
-                        const content = summaryResult.summary.conceptSummary;
+                        const content = summaryResult.summary?.detailedContent || summaryResult.summary?.conceptSummary || '';
                         if (typeof content === 'string') {
-                          // JSON 문자열인지 확인하고 파싱
                           const trimmed = content.trim();
                           if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
                               (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
                             try {
                               const parsed = JSON.parse(trimmed);
-                              // 파싱된 값이 문자열이면 사용, 아니면 원본 사용
                               return typeof parsed === 'string' ? parsed : content;
                             } catch {
                               return content;
                             }
                           }
-                          return content;
+                          return content
+                            .replace(/^이것만 꼭 알아둬!?\s*/i, '')
+                            .replace(/^📖?\s*오늘\s*수업\s*핵심\s*정리\s*/i, '');
                         }
                         return JSON.stringify(content);
                       })()}
@@ -286,26 +286,33 @@ export default function LectureSummaryPage() {
                 </div>
               )}
 
-              {/* 놓친 부분 */}
+              {/* 학생 질문 정리 */}
               {summaryResult.summary?.missedParts && summaryResult.summary.missedParts.length > 0 && (
                 <div className={styles.missedParts}>
-                  <h5>⚠️ 아까 놓친 부분</h5>
+                  <h5>❓ 학생 질문 정리</h5>
                   {summaryResult.summary.missedParts.map((part: any, idx: number) => (
                     <div key={idx} className={styles.missedPartItem}>
                       <p className={styles.missedQuestion}>
-                        <strong>선생님:</strong> "{part.question}"
+                        <strong>질문:</strong> {part.question}
                       </p>
-                      <p className={styles.missedResponse}>
-                        <strong>학생:</strong> "{part.studentResponse}"
-                      </p>
-                      {part.correctAnswer && (
-                        <p className={styles.missedAnswer}>
-                          <strong>정답:</strong> {part.correctAnswer}
+                      {part.contextMeaning && (
+                        <p className={styles.missedExplanation}>
+                          <strong>문맥:</strong> {part.contextMeaning}
+                        </p>
+                      )}
+                      {part.whatNotUnderstood && (
+                        <p className={styles.missedExplanation}>
+                          <strong>모르던 부분:</strong> {part.whatNotUnderstood}
+                        </p>
+                      )}
+                      {part.whatToKnow && (
+                        <p className={styles.missedExplanation}>
+                          <strong>알아야 할 것:</strong> {part.whatToKnow}
                         </p>
                       )}
                       {part.explanation && (
                         <p className={styles.missedExplanation}>
-                          {part.explanation}
+                          <strong>설명:</strong> {part.explanation}
                         </p>
                       )}
                     </div>
@@ -313,13 +320,8 @@ export default function LectureSummaryPage() {
                 </div>
               )}
 
-              {/* 오늘의 미션 */}
-              {summaryResult.summary?.todayMission && (
-                <div className={styles.todayMission}>
-                  <h5>🎯 오늘의 미션</h5>
-                  <MarkdownMath content={summaryResult.summary.todayMission} />
-                </div>
-              )}
+              {/* 오늘의 미션 (POC에서는 숨김) */}
+              {summaryResult.summary?.todayMission && false}
 
               {/* 격려 메시지 */}
               {summaryResult.summary?.encouragement && (

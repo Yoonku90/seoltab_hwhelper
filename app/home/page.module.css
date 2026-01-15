@@ -234,6 +234,41 @@
   padding: 14px;
 }
 
+.panelYellow {
+  background: #fff7e6;
+  border-color: #ffe0b2;
+}
+
+.panelBlue {
+  background: #f1f7ff;
+  border-color: #d6e4ff;
+}
+
+.panelGreen {
+  background: #f2fbf4;
+  border-color: #cfead8;
+}
+
+.panelPurple {
+  background: #f6f0ff;
+  border-color: #e1d0ff;
+}
+
+.panelPink {
+  background: #fff1f3;
+  border-color: #ffd1d9;
+}
+
+.panelOrange {
+  background: #fff4e0;
+  border-color: #ffd8a8;
+}
+
+.panelGray {
+  background: #f7f7f7;
+  border-color: #e3e3e3;
+}
+
 .panelTitle {
   margin: 0 0 10px;
   font-size: 13px;

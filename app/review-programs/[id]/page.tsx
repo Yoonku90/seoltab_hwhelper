@@ -519,26 +519,18 @@ export default function ReviewProgramDetailPage() {
               </div>
             )}
 
-            {/* 놓친 부분 */}
+            {/* 학생 질문 정리 */}
             {rp.reviewContent.missedParts && rp.reviewContent.missedParts.length > 0 && (
               <div className={styles.missedParts}>
-                <h3>⚠️ 아까 놓친 부분</h3>
+                <h3>❓ 학생 질문 정리</h3>
                 {rp.reviewContent.missedParts.map((part: any, idx: number) => (
                   <div key={idx} className={styles.missedPartItem}>
                     <p className={styles.missedQuestion}>
-                      <strong>선생님:</strong> "{part.question}"
+                      <strong>질문:</strong> {part.question}
                     </p>
-                    <p className={styles.missedResponse}>
-                      <strong>학생:</strong> "{part.studentResponse}"
-                    </p>
-                    {part.correctAnswer && (
-                      <p className={styles.missedAnswer}>
-                        <strong>정답:</strong> {part.correctAnswer}
-                      </p>
-                    )}
                     {part.explanation && (
                       <p className={styles.missedExplanation}>
-                        {part.explanation}
+                        <strong>설명:</strong> {part.explanation}
                       </p>
                     )}
                   </div>
