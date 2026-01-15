@@ -54,3 +54,4 @@ export function verifyHash(studentId: string, hash: string): boolean {
   return expectedHash === hash;
 }
 
+
