@@ -119,5 +119,6 @@ export const Collections = {
   performanceTasks: () => getCollection<PerformanceTask>('performance_tasks'),
   reviewPrograms: () => getCollection<ReviewProgram>('review_programs'),
   students: () => getCollection<Student>('students'), // AI 에이전트: 학생 프로필
+  learningSessions: () => getCollection<any>('learning_sessions'), // 학습 세션 (간격 반복용)
 };
 

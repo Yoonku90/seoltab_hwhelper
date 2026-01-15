@@ -4,6 +4,88 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 import MarkdownMath from '@/app/components/MarkdownMath';
+
+// 요약본 이미지 컴포넌트
+function SummaryImages({ roomId, imageUrls }: { roomId?: string; imageUrls?: string[] }) {
+  const [images, setImages] = useState<string[]>(imageUrls || []);
+  const [loading, setLoading] = useState(!imageUrls && !!roomId);
+
+  useEffect(() => {
+    if (!roomId || imageUrls?.length) return;
+
+    const fetchImages = async () => {
+      try {
+        const res = await fetch('/api/admin/room-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.urls && Array.isArray(data.urls)) {
+            setImages(data.urls);
+          }
+        }
+      } catch (err) {
+        console.error('이미지 로드 실패:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchImages();
+  }, [roomId, imageUrls]);
+
+  if (loading) {
+    return <p className={styles.imageHint}>이미지 불러오는 중...</p>;
+  }
+
+  if (images.length === 0) {
+    return <p className={styles.imageHint}>교재 이미지가 없습니다.</p>;
+  }
+
+  return (
+    <div className={styles.imageGrid}>
+      {images.map((url: string, idx: number) => (
+        <div
+          key={idx}
+          className={styles.summaryImageItem}
+          onClick={() => {
+            // 이미지 확대 모달
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+              position: fixed;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              background: rgba(0, 0, 0, 0.9);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              z-index: 10000;
+              cursor: pointer;
+            `;
+            const img = document.createElement('img');
+            img.src = url;
+            img.style.cssText = `
+              max-width: 90vw;
+              max-height: 90vh;
+              object-fit: contain;
+              cursor: zoom-out;
+            `;
+            modal.appendChild(img);
+            modal.onclick = () => document.body.removeChild(modal);
+            document.body.appendChild(modal);
+          }}
+        >
+          <img src={url} alt={`교재 이미지 ${idx + 1}`} />
+        </div>
+      ))}
+    </div>
+  );
+}
 // 🤖 AI Agent: 이벤트 수집
 import {
   trackSessionStart,
@@ -173,13 +255,18 @@ export default function ReviewProgramDetailPage() {
     const toc: Array<{ label: string; completed: boolean; current: boolean }> = [];
     toc.push({ label: '오늘 복습 시작', completed: tutorState.stage !== 'intro', current: tutorState.stage === 'intro' });
     
-    keyPoints.forEach((kp, idx) => {
-      const isCompleted = tutorState.stage === 'keyPoints' ? idx < tutorState.idx : tutorState.stage !== 'intro' && tutorState.stage !== 'keyPoints';
+    keyPoints.forEach((kp: string, idx: number) => {
+      let isCompleted: boolean;
+      if (tutorState.stage === 'keyPoints') {
+        isCompleted = idx < tutorState.idx;
+      } else {
+        isCompleted = tutorState.stage !== 'intro';
+      }
       const isCurrent = tutorState.stage === 'keyPoints' && tutorState.idx === idx;
       toc.push({ label: `핵심 포인트 ${idx + 1}`, completed: isCompleted, current: isCurrent });
     });
     
-    practiceProblems.forEach((_, idx) => {
+    practiceProblems.forEach((_: any, idx: number) => {
       const isCompleted = tutorState.stage === 'practice' ? idx < tutorState.idx : tutorState.stage === 'quiz' || tutorState.stage === 'wrapup';
       const isCurrent = tutorState.stage === 'practice' && tutorState.idx === idx;
       toc.push({ label: `연습 문제 ${idx + 1}`, completed: isCompleted, current: isCurrent });
@@ -383,6 +470,107 @@ export default function ReviewProgramDetailPage() {
         </div>
       </header>
 
+      {/* 요약본 내용 표시 (시크릿 노트인 경우) */}
+      {rp.metadata?.isSecretNote && rp.reviewContent && (
+        <section className={styles.summarySection}>
+          <div className={styles.summaryCard}>
+            <h2 className={styles.summaryTitle}>✨ 유은서 쌤이 방금 만든 따끈따끈한 비법 노트!</h2>
+            
+            {/* 쌤의 한마디 */}
+            {rp.reviewContent.teacherMessage && (
+              <div className={styles.teacherMessage}>
+                <h3>💬 쌤의 한마디</h3>
+                <MarkdownMath content={rp.reviewContent.teacherMessage} />
+              </div>
+            )}
+
+            {/* UNIT 제목 */}
+            {rp.reviewContent.unitTitle && (
+              <div className={styles.unitTitle}>
+                <h3>{rp.reviewContent.unitTitle}</h3>
+              </div>
+            )}
+
+            {/* 이것만 꼭 알아둬! */}
+            {rp.reviewContent.conceptSummary && (
+              <div className={styles.conceptSummary}>
+                <h3>💡 이것만 꼭 알아둬!</h3>
+                <div className={styles.conceptText}>
+                  <MarkdownMath 
+                    content={typeof rp.reviewContent.conceptSummary === 'string' 
+                      ? rp.reviewContent.conceptSummary 
+                      : JSON.stringify(rp.reviewContent.conceptSummary)
+                    } 
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 교재 강조 부분 */}
+            {rp.reviewContent.textbookHighlight && (
+              <div className={styles.textbookHighlight}>
+                <h3>📖 쌤 Tip</h3>
+                <MarkdownMath 
+                  content={typeof rp.reviewContent.textbookHighlight === 'string' 
+                    ? rp.reviewContent.textbookHighlight 
+                    : JSON.stringify(rp.reviewContent.textbookHighlight)
+                  } 
+                />
+              </div>
+            )}
+
+            {/* 놓친 부분 */}
+            {rp.reviewContent.missedParts && rp.reviewContent.missedParts.length > 0 && (
+              <div className={styles.missedParts}>
+                <h3>⚠️ 아까 놓친 부분</h3>
+                {rp.reviewContent.missedParts.map((part: any, idx: number) => (
+                  <div key={idx} className={styles.missedPartItem}>
+                    <p className={styles.missedQuestion}>
+                      <strong>선생님:</strong> "{part.question}"
+                    </p>
+                    <p className={styles.missedResponse}>
+                      <strong>학생:</strong> "{part.studentResponse}"
+                    </p>
+                    {part.correctAnswer && (
+                      <p className={styles.missedAnswer}>
+                        <strong>정답:</strong> {part.correctAnswer}
+                      </p>
+                    )}
+                    {part.explanation && (
+                      <p className={styles.missedExplanation}>
+                        {part.explanation}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 오늘의 미션 */}
+            {rp.reviewContent.todayMission && (
+              <div className={styles.todayMission}>
+                <h3>🎯 오늘의 미션</h3>
+                <MarkdownMath content={rp.reviewContent.todayMission} />
+              </div>
+            )}
+
+            {/* 격려 메시지 */}
+            {rp.reviewContent.encouragement && (
+              <div className={styles.encouragement}>
+                <MarkdownMath content={rp.reviewContent.encouragement} />
+              </div>
+            )}
+
+            {/* 요약본 이미지 (metadata에 저장된 이미지 URL들 또는 Room ID로 가져오기) */}
+            {(rp.metadata?.imageUrls?.length > 0 || rp.metadata?.roomId) && (
+              <div className={styles.summaryImages}>
+                <h3>📸 교재 이미지</h3>
+                <SummaryImages roomId={rp.metadata?.roomId} imageUrls={rp.metadata?.imageUrls} />
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {progressInfo && (
         <>

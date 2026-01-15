@@ -35,7 +35,7 @@ export default function AdminDashboard() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <h1 className={styles.title}>🐰 랑쌤 관리자</h1>
+        <h1 className={styles.title}>🐰🐶 랑쌤/준쌤 관리자 페이지</h1>
         <p className={styles.subtitle}>Students Helper Admin Dashboard</p>
       </header>
 
@@ -87,6 +87,30 @@ export default function AdminDashboard() {
           <div className={styles.menuIcon}>📊</div>
           <div className={styles.menuTitle}>학습 분석</div>
           <div className={styles.menuDesc}>학습 통계, 진도율, 성취도</div>
+        </Link>
+
+        <Link href="/admin/lecture" className={styles.menuCard}>
+          <div className={styles.menuIcon}>🎤</div>
+          <div className={styles.menuTitle}>수업 STT 검색</div>
+          <div className={styles.menuDesc}>LVT, Room ID, 또는 User ID로 수업 STT 데이터 검색</div>
+        </Link>
+
+        <Link href="/admin/lecture-summary" className={styles.menuCard}>
+          <div className={styles.menuIcon}>✨</div>
+          <div className={styles.menuTitle}>따끈따끈 요약본 생성</div>
+          <div className={styles.menuDesc}>Room ID로 STT와 교재 이미지를 결합하여 10분 컷 요약본 생성</div>
+        </Link>
+
+        <Link href="/admin/summaries" className={styles.menuCard}>
+          <div className={styles.menuIcon}>📋</div>
+          <div className={styles.menuTitle}>요약본 목록</div>
+          <div className={styles.menuDesc}>생성된 모든 요약본을 확인하고 관리</div>
+        </Link>
+
+        <Link href="/admin/room-images" className={styles.menuCard}>
+          <div className={styles.menuIcon}>🖼️</div>
+          <div className={styles.menuTitle}>룸아이디 이미지 검색</div>
+          <div className={styles.menuDesc}>Pagecall 룸아이디로 해당 룸의 모든 이미지 확인</div>
         </Link>
       </section>
 

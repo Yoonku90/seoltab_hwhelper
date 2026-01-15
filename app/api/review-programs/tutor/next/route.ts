@@ -120,6 +120,16 @@ export async function POST(req: NextRequest) {
     const priorityMarkers: any[] = (rp.source as any)?.priorityMarkers || [];
     const studentNotes: string = (rp.source as any)?.studentNotes || '';
     
+    // 📝 복습 프로그램용: STT 데이터 + 이미지 순서 + 서머리
+    const sttData = rp.reviewContent?.sttData || null;
+    const imagesInOrder = rp.reviewContent?.imagesInOrder || [];
+    const summaryContent = rp.reviewContent || {};
+    
+    // STT가 있으면 STT 순서대로 이미지와 함께 활용
+    const sttText = sttData?.fullText || '';
+    const sttConversations = sttData?.conversations || [];
+    const sttImageRefs = sttData?.imageRefs || [];
+    
     // 🖼️ 하이브리드: 이미지 버퍼 가져오기 (있으면)
     let imageBuffer: Buffer | null = null;
     let imageMimeType: string = 'image/jpeg';
@@ -216,6 +226,12 @@ export async function POST(req: NextRequest) {
       recommendedDifficulty,
       recommendedLearningPath,
       recommendedStudyTime,
+      // 📝 복습 프로그램용: STT + 이미지 + 서머리
+      sttData,
+      sttText,
+      sttConversations,
+      imagesInOrder,
+      summaryContent,
     };
 
     // 과목별 전문 가이드 가져오기
@@ -234,6 +250,13 @@ export async function POST(req: NextRequest) {
     말투는 친근하고 부드러운 **반말**로, 학생들이 편하게 느낄 수 있도록 다정하고 상냥하게.
     
     (매우 중요) **학생의 질문을 절대 무시하지 마!** 학생이 질문하면 반드시 먼저 답변하고, 그 다음에 수업을 계속 진행해야 해!
+    
+    ${sttData ? `
+    **📝 수업 STT 데이터 활용:**
+    - 실제 수업 대화 내용이 제공되었어. 이걸 바탕으로 학생이 놓친 부분을 정확히 파악하고 집중 복습해줘.
+    - STT 순서대로 이미지도 제공되었어. 수업 흐름에 맞춰서 이미지를 언급하면서 설명해줘.
+    - 요약본(서머리)도 함께 제공되었어. 요약본의 핵심 개념을 STT와 연결해서 설명하면 더 효과적이야.
+    ` : ''}
 
 📚 **현재 과목**: ${subject} ${gradeNote}
 

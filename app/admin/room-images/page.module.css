@@ -1,0 +1,244 @@
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 40px;
+  color: white;
+}
+
+.header {
+  margin-bottom: 40px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #888;
+  text-decoration: none;
+  font-size: 14px;
+  margin-bottom: 16px;
+  transition: color 0.2s;
+}
+
+.backLink:hover {
+  color: #4fc3f7;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #888;
+  margin: 0;
+}
+
+.searchSection {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 24px;
+  transition: transform 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.searchSection:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(79, 195, 247, 0.3);
+}
+
+.searchBox {
+  display: flex;
+  gap: 12px;
+}
+
+.searchInput {
+  flex: 1;
+  padding: 14px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  transition: all 0.2s;
+}
+
+.searchInput::placeholder {
+  color: #666;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #4fc3f7;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(79, 195, 247, 0.1);
+}
+
+.searchInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.searchButton {
+  padding: 14px 28px;
+  background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+  white-space: nowrap;
+}
+
+.searchButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.searchButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.errorBox {
+  background: rgba(239, 83, 80, 0.1);
+  border: 1px solid rgba(239, 83, 80, 0.3);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 24px;
+  color: #ffcdd2;
+}
+
+.resultSection {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 28px;
+  transition: transform 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.resultSection:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(79, 195, 247, 0.3);
+}
+
+.resultHeader {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.resultTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: white;
+  margin: 0 0 8px 0;
+}
+
+.roomIdCode {
+  background: rgba(79, 195, 247, 0.2);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 14px;
+  color: #4fc3f7;
+  border: 1px solid rgba(79, 195, 247, 0.3);
+}
+
+.resultCount {
+  color: #aaa;
+  margin: 0;
+  font-size: 14px;
+}
+
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.imageCard {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+  transition: transform 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.imageCard:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(79, 195, 247, 0.3);
+}
+
+.imageNumber {
+  background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
+  color: white;
+  padding: 10px;
+  font-weight: 600;
+  text-align: center;
+  font-size: 14px;
+}
+
+.image {
+  width: 100%;
+  height: 240px;
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.2);
+  display: block;
+}
+
+.imageUrl {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.imageLink {
+  color: #4fc3f7;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.imageLink:hover {
+  color: #81d4fa;
+  text-decoration: underline;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 60px 40px;
+  color: #888;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 20px;
+  }
+
+  .imageGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .searchBox {
+    flex-direction: column;
+  }
+
+  .searchButton {
+    width: 100%;
+  }
+}

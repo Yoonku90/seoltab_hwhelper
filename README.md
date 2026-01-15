@@ -23,6 +23,7 @@
 ```
 MONGODB_URI=mongodb://localhost:27017/seoltab_hwhelper
 GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
+# LECTURE_API_BASE_URL (선택사항) - 기본값: https://lecture-analysis-pipeline-api.seoltab.com/report-backend
 ```
 
 ## 실행
@@ -54,6 +55,12 @@ npm run dev
 
 ### Top5 API
 - `POST /api/assignments/:id/top5/confirm` - Top5 질문 확정
+
+### Lecture STT API
+- `GET /api/lecture/search?lvt={lvt}` - LVT로 Room 목록 검색
+- `GET /api/lecture/search?roomId={roomId}` - Room ID로 검색
+- `GET /api/lecture/text?roomId={roomId}` - 단일 Room의 STT 텍스트 조회
+- `POST /api/lecture/text` - 배치로 여러 Room의 STT 텍스트 조회 (Body: `{ room_ids: string[] }`)
 
 ## 화면 구조
 

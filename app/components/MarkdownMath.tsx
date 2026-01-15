@@ -235,8 +235,22 @@ function convertMathExpressions(text: string): string {
 function renderContent(text: string): string {
   if (!text) return ''
 
+  // 0. LaTeX 수식 내부의 잘못된 줄바꿈 먼저 제거 (가장 먼저 처리)
+  // $...$ 내부의 줄바꿈을 제거 (예: t\nh\ne → the)
+  let processedText = text.replace(/\$([^$]+?)\$/g, (match, latex) => {
+    // LaTeX 내부의 실제 줄바꿈과 캐리지 리턴을 모두 제거
+    const cleaned = latex.replace(/[\r\n]+/g, '').trim()
+    return `$${cleaned}$`
+  })
+  
+  // 0-1. LaTeX 블록 ($$...$$) 내부의 줄바꿈도 제거
+  processedText = processedText.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
+    const cleaned = latex.replace(/[\r\n]+/g, ' ').trim() // 줄바꿈을 공백으로 변환
+    return `$$${cleaned}$$`
+  })
+  
   // 수학 표현식 자동 변환 (먼저 처리)
-  let processedText = convertMathExpressions(text)
+  processedText = convertMathExpressions(processedText)
   
   // LaTeX 명령어 자동 감싸기
   processedText = autoWrapLatex(processedText)

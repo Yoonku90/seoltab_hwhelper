@@ -776,6 +776,19 @@ export default function HomePage() {
             <button className={styles.quickBtn} onClick={() => router.push(`/review-programs?studentId=${studentId}`)}>
               📚 내 복습 목록
             </button>
+            <button 
+              className={styles.quickBtn} 
+              onClick={() => router.push(`/homework?studentId=${studentId}&tutor=${selectedTutor}`)}
+            >
+              📝 숙제 도와주기
+            </button>
+            <button 
+              className={styles.quickBtn} 
+              onClick={() => router.push(`/learning-flow?studentId=${studentId}`)}
+              style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontWeight: 700 }}
+            >
+              🚀 학습 플로우
+            </button>
           </div>
         </div>
       </section>
