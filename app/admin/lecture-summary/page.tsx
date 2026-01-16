@@ -193,7 +193,7 @@ export default function LectureSummaryPage() {
   const cardScrollRafRef = useRef<number | null>(null);
   const reviewProgramIdParam = searchParams.get('reviewProgramId');
 
-  const generateSummary = async () => {
+  const generateSummary = async (forcePromptRefresh = false) => {
     if (!roomId.trim()) {
       setError('Room ID를 입력해주세요.');
       return;
@@ -209,7 +209,7 @@ export default function LectureSummaryPage() {
       const res = await fetch('/api/lecture/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: roomId.trim(), testMode }),
+        body: JSON.stringify({ roomId: roomId.trim(), testMode, forcePromptRefresh }),
       });
 
       console.log('[lecture-summary] API 응답 상태:', res.status, res.statusText);
@@ -293,7 +293,7 @@ export default function LectureSummaryPage() {
   const handleRegenerateWithUpdatedPrompt = async () => {
     if (!summaryResult) return;
     setPreviousSummaryResult(summaryResult);
-    await generateSummary();
+    await generateSummary(true);
   };
 
   const getChangedSections = (prev: any, next: any): string[] => {
@@ -911,7 +911,7 @@ export default function LectureSummaryPage() {
                   <h5>📐 시각 자료</h5>
                   <div className={styles.visualAidGrid}>
                     {resolveVisualAids(summaryResult.summary?.visualAids).map((aid: any, idx: number) => {
-                      const title = aid?.title || `시각 자료 ${idx + 1}`;
+                      const title = aid?.title || aid?.name || `시각 자료 ${idx + 1}`;
                       const description = aid?.description || '';
                       const shape = aid?.type ? aid : { type: aid?.type || 'geometry', data: aid?.data || aid };
                       return (

@@ -72,6 +72,7 @@ type SummaryCacheData = {
   images: string[];
   sttImageRefs: string[];
   imagesToUse: string[];
+  cachedPrompt?: string | null;
 };
 
 const SUMMARY_CACHE_DIR = path.join(process.cwd(), '.cache', 'lecture-summary');
@@ -131,7 +132,7 @@ async function downloadAndConvertImage(imageUrl: string): Promise<{ buffer: Buff
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { roomId, grade, testMode } = body;
+    const { roomId, grade, testMode, forcePromptRefresh } = body;
 
     if (!roomId) {
       return NextResponse.json(
@@ -169,6 +170,7 @@ export async function POST(req: NextRequest) {
     let sttImageRefs: string[] = [];
     let imagesToUse: string[] = [];
     let usedCache = false;
+    let cachedPrompt: string | null = null;
 
     if (isTestMode) {
       const cached = await loadSummaryCache(roomId);
@@ -185,6 +187,7 @@ export async function POST(req: NextRequest) {
         images = cached.images || [];
         sttImageRefs = cached.sttImageRefs || [];
         imagesToUse = cached.imagesToUse || [];
+        cachedPrompt = cached.cachedPrompt || null;
 
         if (isDevelopment) {
           console.log(`[lecture/summary] 🧪 테스트 모드 캐시 사용: ${roomId}`);
@@ -466,7 +469,10 @@ export async function POST(req: NextRequest) {
       console.log('[lecture/summary] 📚 커리큘럼 매칭 힌트 적용');
     }
 
-    const prompt = buildSummaryPrompt({
+    const shouldUseCachedPrompt = isTestMode && usedCache && !forcePromptRefresh && !!cachedPrompt;
+    const prompt = shouldUseCachedPrompt
+      ? (cachedPrompt as string)
+      : buildSummaryPrompt({
       displayName,
       studentName,
       studentId,
@@ -627,7 +633,7 @@ ${sttSummary}${conceptKeywords}
       console.log(`[lecture/summary] 🧪 테스트 모드: 캐시된 이미지 ${imagesToUse.length}개 사용`);
     }
 
-    if (isTestMode && !usedCache) {
+    if (isTestMode && (!usedCache || forcePromptRefresh)) {
       await saveSummaryCache(roomId, {
         version: 1,
         roomId,
@@ -643,6 +649,7 @@ ${sttSummary}${conceptKeywords}
         images,
         sttImageRefs,
         imagesToUse,
+        cachedPrompt: prompt,
       });
 
       if (isDevelopment) {

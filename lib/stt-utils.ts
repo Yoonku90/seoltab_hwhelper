@@ -281,8 +281,67 @@ ${conversations
       contents: [{ role: 'user', parts: [{ text: correctionPrompt }] }],
     });
 
-    const correctionResponseText = correctionResult.response.text();
-    const correctionData = parseJsonWithFallback(correctionResponseText);
+    let correctionResponseText = correctionResult.response.text();
+    let correctionData: any | null = null;
+
+    try {
+      correctionData = parseJsonWithFallback(correctionResponseText);
+    } catch (parseErr) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[stt-utils] STT 보정 JSON 파싱 실패, 재시도합니다.');
+      }
+
+      const retryPrompt = `반드시 아래 형식의 **순수 JSON**만 출력하세요. 코드 블록, 설명, 주석, 부가 텍스트 금지.
+
+**출력 형식 (JSON만):**
+{
+  "correctedConversations": [
+    {
+      "index": 1,
+      "speaker": "teacher" 또는 "student",
+      "text": "보정된 텍스트",
+      "timestamp": "원본 timestamp 또는 null"
+    }
+  ]
+}
+
+**규칙 (매우 중요):**
+- 모든 대화를 반드시 포함 (입력된 대화 수와 동일)
+- 문자열은 반드시 이중 따옴표 사용
+- 줄바꿈은 \\n으로 표현
+- trailing comma 금지
+- 새로운 내용 추가 금지
+- 한국어로 출력
+
+**STT 대화 데이터:**
+${conversations.map((conv, idx) => `[${idx + 1}] ${conv.speaker}: ${conv.text}`).join('\n')}
+`;
+
+      const retryModel = genAI.getGenerativeModel({
+        model: 'gemini-2.5-pro',
+        safetySettings: GEMINI_SAFETY_SETTINGS,
+        generationConfig: {
+          maxOutputTokens: 32768,
+          temperature: 0.1,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const retryResult = await retryModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: retryPrompt }] }],
+      });
+
+      const retryText = retryResult.response.text();
+      try {
+        correctionData = parseJsonWithFallback(retryText);
+        correctionResponseText = retryText;
+      } catch (retryErr) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[stt-utils] STT 보정 재시도도 실패, 원본 사용');
+        }
+        correctionData = null;
+      }
+    }
 
     if (correctionData && correctionData.correctedConversations && Array.isArray(correctionData.correctedConversations)) {
       if (correctionData.correctedConversations.length !== conversations.length) {
@@ -306,7 +365,9 @@ ${conversations
       return conversations;
     }
   } catch (correctionErr) {
-    console.warn('[stt-utils] STT 보정 실패, 원본 사용:', correctionErr);
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[stt-utils] STT 보정 실패, 원본 사용:', correctionErr);
+    }
     return conversations; // 보정 실패 시 원본 반환
   }
 }
