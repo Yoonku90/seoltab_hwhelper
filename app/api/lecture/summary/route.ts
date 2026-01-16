@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { Collections } from '@/lib/db';
 import { loadCorrectAndParseStt, type Conversation } from '@/lib/stt-utils';
@@ -54,6 +56,43 @@ function detectImageMimeType(imageUrl: string, contentType: string | null, image
   return 'image/jpeg';
 }
 
+type SummaryCacheData = {
+  version: 1;
+  roomId: string;
+  cachedAt: string;
+  subject: string;
+  tutoringDatetime: string | null;
+  studentId: string | null;
+  studentName: string | null;
+  studentNickname: string | null;
+  sttText: string | null;
+  fullConversation: Conversation[];
+  missedParts: Array<{ question: string; studentResponse?: string; correctAnswer?: string; explanation?: string }>;
+  images: string[];
+  sttImageRefs: string[];
+  imagesToUse: string[];
+};
+
+const SUMMARY_CACHE_DIR = path.join(process.cwd(), '.cache', 'lecture-summary');
+
+async function loadSummaryCache(roomId: string): Promise<SummaryCacheData | null> {
+  try {
+    const cachePath = path.join(SUMMARY_CACHE_DIR, `${roomId}.json`);
+    const raw = await fs.readFile(cachePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.roomId !== roomId) return null;
+    return parsed as SummaryCacheData;
+  } catch {
+    return null;
+  }
+}
+
+async function saveSummaryCache(roomId: string, data: SummaryCacheData): Promise<void> {
+  await fs.mkdir(SUMMARY_CACHE_DIR, { recursive: true });
+  const cachePath = path.join(SUMMARY_CACHE_DIR, `${roomId}.json`);
+  await fs.writeFile(cachePath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
 // 이미지 다운로드 및 변환 함수 (최적화: 재사용)
 async function downloadAndConvertImage(imageUrl: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
   try {
@@ -91,7 +130,7 @@ async function downloadAndConvertImage(imageUrl: string): Promise<{ buffer: Buff
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { roomId, grade } = body;
+    const { roomId, grade, testMode } = body;
 
     if (!roomId) {
       return NextResponse.json(
@@ -114,8 +153,46 @@ export async function POST(req: NextRequest) {
 
     // 🚀 최적화 1: 병렬 처리 - Room metadata, STT, 이미지, 학생 정보를 동시에 로드
     const isDevelopment = process.env.NODE_ENV === 'development';
-    
-    const [roomMetaRes, sttPromise, imagesPromise, studentInfoPromise] = await Promise.allSettled([
+    const isTestMode =
+      Boolean(testMode) && (isDevelopment || process.env.ENABLE_SUMMARY_TEST_MODE === 'true');
+
+    let subject = '미분류';
+    let tutoringDatetime: string | null = null;
+    let studentId: string | null = null;
+    let studentName: string | null = null;
+    let studentNickname: string | null = null;
+    let sttText: string | null = null;
+    let missedParts: Array<{ question: string; studentResponse?: string; correctAnswer?: string; explanation?: string }> = [];
+    let fullConversation: Conversation[] = [];
+    let images: string[] = [];
+    let sttImageRefs: string[] = [];
+    let imagesToUse: string[] = [];
+    let usedCache = false;
+
+    if (isTestMode) {
+      const cached = await loadSummaryCache(roomId);
+      if (cached) {
+        usedCache = true;
+        subject = cached.subject || subject;
+        tutoringDatetime = cached.tutoringDatetime || null;
+        studentId = cached.studentId || null;
+        studentName = cached.studentName || null;
+        studentNickname = cached.studentNickname || null;
+        sttText = cached.sttText || null;
+        fullConversation = cached.fullConversation || [];
+        missedParts = cached.missedParts || [];
+        images = cached.images || [];
+        sttImageRefs = cached.sttImageRefs || [];
+        imagesToUse = cached.imagesToUse || [];
+
+        if (isDevelopment) {
+          console.log(`[lecture/summary] 🧪 테스트 모드 캐시 사용: ${roomId}`);
+        }
+      }
+    }
+
+    if (!usedCache) {
+      const [roomMetaRes, sttPromise, imagesPromise, studentInfoPromise] = await Promise.allSettled([
       // 1. Room 메타데이터
       fetch(`${LECTURE_API_BASE_URL}/meta/room/${roomId}`, {
         headers: { 'Content-Type': 'application/json' },
@@ -226,14 +303,10 @@ export async function POST(req: NextRequest) {
       );
     }
     const roomMeta = await roomMetaRes.value.json();
-    const subject = roomMeta.subject || '미분류';
-    const tutoringDatetime = roomMeta.tutoring_datetime || null;
+    subject = roomMeta.subject || '미분류';
+    tutoringDatetime = roomMeta.tutoring_datetime || null;
 
     // 학생 정보 처리
-    let studentId: string | null = null;
-    let studentName: string | null = null;
-    let studentNickname: string | null = null;
-    
     if (studentInfoPromise.status === 'fulfilled') {
       const studentInfo = studentInfoPromise.value;
       studentId = studentInfo.studentId;
@@ -252,10 +325,6 @@ export async function POST(req: NextRequest) {
     }
 
     // STT 처리 (병렬로 이미 로드됨)
-    let sttText = null;
-    let missedParts: Array<{question: string; studentResponse?: string; correctAnswer?: string; explanation?: string}> = [];
-    let fullConversation: Conversation[] = [];
-    
     if (sttPromise.status === 'fulfilled') {
       fullConversation = sttPromise.value;
       
@@ -315,8 +384,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 이미지 처리 (병렬로 이미 로드됨)
-    let images: string[] = imagesPromise.status === 'fulfilled' ? imagesPromise.value : [];
-    let sttImageRefs: string[] = [];
+    images = imagesPromise.status === 'fulfilled' ? imagesPromise.value : [];
+    sttImageRefs = [];
     
     if (sttText && fullConversation) {
       sttImageRefs = fullConversation
@@ -368,6 +437,8 @@ export async function POST(req: NextRequest) {
       console.log('[lecture/summary] ========================================\n');
     }
 
+    }
+
     // 4. AI로 요약본 생성
     // apiKey와 genAI는 이미 위에서 초기화됨
     const model = genAI.getGenerativeModel({
@@ -398,9 +469,9 @@ export async function POST(req: NextRequest) {
     });
 
     // 🎯 STT 기반 이미지 관련성 분석 및 선택 (최적화: 이미지 캐싱)
-    let imagesToUse: string[] = [];
     const imageCache = new Map<string, { buffer: Buffer; mimeType: string }>(); // 이미지 다운로드 캐시
-    
+
+    if (imagesToUse.length === 0) {
     if (images.length > 0 && sttText) {
       console.log(`[lecture/summary] 🔍 STT 기반 이미지 관련성 분석 시작 (${images.length}개 이미지)...`);
       
@@ -539,6 +610,32 @@ ${sttSummary}${conceptKeywords}
       // STT가 없을 때도 모든 이미지 사용 (개수 제한 없음)
       imagesToUse = images;
       console.log(`[lecture/summary] 🖼️ STT 없음, 이미지 ${imagesToUse.length}개 사용 (전체 활용)`);
+    }
+    } else if (isDevelopment) {
+      console.log(`[lecture/summary] 🧪 테스트 모드: 캐시된 이미지 ${imagesToUse.length}개 사용`);
+    }
+
+    if (isTestMode && !usedCache) {
+      await saveSummaryCache(roomId, {
+        version: 1,
+        roomId,
+        cachedAt: new Date().toISOString(),
+        subject,
+        tutoringDatetime,
+        studentId,
+        studentName,
+        studentNickname,
+        sttText,
+        fullConversation,
+        missedParts,
+        images,
+        sttImageRefs,
+        imagesToUse,
+      });
+
+      if (isDevelopment) {
+        console.log(`[lecture/summary] 🧪 테스트 모드 캐시 저장 완료: ${roomId}`);
+      }
     }
 
     // 프롬프트와 선택된 이미지를 parts에 추가 (최적화: 캐시된 이미지 재사용)

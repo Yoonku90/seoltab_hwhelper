@@ -56,6 +56,7 @@ export default function LectureSummaryPage() {
   const [summaryResult, setSummaryResult] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'full' | 'cards'>('full');
+  const [testMode, setTestMode] = useState(false);
 
   const handleGenerateSummary = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,7 +76,7 @@ export default function LectureSummaryPage() {
       const res = await fetch('/api/lecture/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: roomId.trim() }),
+        body: JSON.stringify({ roomId: roomId.trim(), testMode }),
       });
 
       console.log('[lecture-summary] API 응답 상태:', res.status, res.statusText);
@@ -181,6 +182,21 @@ export default function LectureSummaryPage() {
                   />
                   <p className={styles.hint}>
                     Room ID를 입력하면 해당 수업의 STT 텍스트와 교재 이미지를 자동으로 검색하여 요약본을 생성합니다.
+                  </p>
+                </div>
+                <div className={styles.toggleRow}>
+                  <label className={styles.toggleLabel}>
+                    <input
+                      type="checkbox"
+                      className={styles.toggleInput}
+                      checked={testMode}
+                      onChange={(e) => setTestMode(e.target.checked)}
+                      disabled={isGenerating}
+                    />
+                    테스트 모드 (STT/이미지 캐시 사용)
+                  </label>
+                  <p className={styles.toggleHint}>
+                    같은 Room ID 재실행 시 외부 호출 없이 캐시를 재사용합니다.
                   </p>
                 </div>
                 <button

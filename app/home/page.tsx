@@ -77,6 +77,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [summaryResult, setSummaryResult] = useState<SummaryResult | null>(null);
   const [viewMode, setViewMode] = useState<'full' | 'cards'>('full');
+  const [testMode, setTestMode] = useState(false);
 
   const handleGenerateSummary = async () => {
     if (!roomId.trim()) {
@@ -91,7 +92,7 @@ export default function HomePage() {
       const res = await fetch('/api/lecture/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: roomId.trim() }),
+        body: JSON.stringify({ roomId: roomId.trim(), testMode }),
       });
 
       let data: SummaryResult | null = null;
@@ -161,6 +162,21 @@ export default function HomePage() {
           <button className={styles.primaryBtn} onClick={handleGenerateSummary} disabled={isGenerating}>
             {isGenerating ? '생성 중...' : '요약본 생성'}
           </button>
+        </div>
+        <div className={styles.toggleRow}>
+          <label className={styles.toggleLabel}>
+            <input
+              type="checkbox"
+              className={styles.toggleInput}
+              checked={testMode}
+              onChange={(e) => setTestMode(e.target.checked)}
+              disabled={isGenerating}
+            />
+            테스트 모드 (STT/이미지 캐시 사용)
+          </label>
+          <p className={styles.toggleHint}>
+            같은 Room ID 재실행 시 외부 호출 없이 캐시를 재사용합니다.
+          </p>
         </div>
         {error && <p style={{ color: '#d32f2f', marginTop: 8 }}>{error}</p>}
       </section>
