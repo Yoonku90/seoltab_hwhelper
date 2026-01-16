@@ -432,8 +432,8 @@ export async function loadCorrectAndParseStt(
   if (conversations.length === 0) {
     return [];
   }
-  
-  const corrected = await correctStt(conversations, apiKey);
-  return corrected;
+
+  // 원본 STT를 그대로 사용
+  return conversations;
 }
 
