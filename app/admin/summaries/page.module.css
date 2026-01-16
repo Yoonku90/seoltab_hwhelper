@@ -200,6 +200,29 @@
   border-top: 1px solid #333;
 }
 
+.deleteBtn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #5a2a2a;
+  background: rgba(255, 82, 82, 0.15);
+  color: #ff8a80;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.deleteBtn:hover {
+  background: rgba(255, 82, 82, 0.25);
+  border-color: #ff5252;
+  color: #fff;
+}
+
+.deleteBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .viewBtn,
 .sttBtn {
   flex: 1;

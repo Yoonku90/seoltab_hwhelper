@@ -25,6 +25,7 @@ export default function AdminSummariesPage() {
   const [searchRoomId, setSearchRoomId] = useState('');
   const [searchStudentId, setSearchStudentId] = useState('');
   const [filteredSummaries, setFilteredSummaries] = useState<Summary[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSummaries();
@@ -63,6 +64,27 @@ export default function AdminSummariesPage() {
       console.error('요약본 목록 로드 실패:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteSummary = async (summaryId: string) => {
+    const confirmed = window.confirm('이 요약본을 삭제할까요? 삭제 후 복구할 수 없습니다.');
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(summaryId);
+      const res = await fetch(`/api/review-programs/${summaryId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const message = data?.error || '요약본 삭제에 실패했습니다.';
+        throw new Error(message);
+      }
+      await fetchSummaries();
+    } catch (error) {
+      console.error('요약본 삭제 실패:', error);
+      alert('요약본 삭제에 실패했습니다.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -180,6 +202,14 @@ export default function AdminSummariesPage() {
                       🎤 STT 보기
                     </Link>
                   )}
+                  <button
+                    type="button"
+                    className={styles.deleteBtn}
+                    onClick={() => handleDeleteSummary(summary._id)}
+                    disabled={deletingId === summary._id}
+                  >
+                    {deletingId === summary._id ? '삭제 중...' : '🗑️ 삭제'}
+                  </button>
                 </div>
               </div>
             ))}
