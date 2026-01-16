@@ -6,6 +6,7 @@ import { Collections } from '@/lib/db';
 import { loadCorrectAndParseStt, type Conversation } from '@/lib/stt-utils';
 import { getSubjectGuide } from '@/lib/prompts/subjectPrompts';
 import { buildSummaryPrompt } from '@/lib/prompts/summaryPrompt';
+import { buildCurriculumHint } from '@/lib/curriculum/matchCurriculum';
 
 // Lecture Analysis Pipeline API Base URL
 const LECTURE_API_BASE_URL = 
@@ -442,7 +443,7 @@ export async function POST(req: NextRequest) {
     // 4. AI로 요약본 생성
     // apiKey와 genAI는 이미 위에서 초기화됨
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-pro',
       safetySettings: GEMINI_SAFETY_SETTINGS,
       generationConfig: {
         maxOutputTokens: 8192,
@@ -455,6 +456,16 @@ export async function POST(req: NextRequest) {
     const displayName = studentNickname || studentName || null;
     const gradeLabel = typeof grade === 'string' && grade.trim().length > 0 ? grade.trim() : null;
     const subjectGuide = getSubjectGuide(subject);
+    const curriculumHint = buildCurriculumHint({
+      sttText,
+      subject,
+      gradeLabel,
+    });
+
+    if (isDevelopment && curriculumHint) {
+      console.log('[lecture/summary] 📚 커리큘럼 매칭 힌트 적용');
+    }
+
     const prompt = buildSummaryPrompt({
       displayName,
       studentName,
@@ -462,6 +473,7 @@ export async function POST(req: NextRequest) {
       gradeLabel,
       subject,
       subjectGuide,
+      curriculumHint,
       tutoringDatetime,
       sttText,
       missedParts,
@@ -1016,7 +1028,7 @@ ${sttSummary}${conceptKeywords}
         });
       }
       
-      const reviewProgramUrl = `${req.nextUrl.origin}/review-programs/${insertResult.insertedId.toString()}`;
+      const reviewProgramUrl = `${req.nextUrl.origin}/admin/lecture-summary?reviewProgramId=${insertResult.insertedId.toString()}`;
       console.log('\n[lecture/summary] 📚 Review Program 확인:');
       console.log(`%c   ${reviewProgramUrl}`, 'color: #4fc3f7; text-decoration: underline; cursor: pointer;');
       console.log(`[lecture/summary]   Review Program ID: ${insertResult.insertedId.toString()}`);

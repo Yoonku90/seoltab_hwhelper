@@ -216,7 +216,7 @@ export async function correctStt(
     
     const genAI = new GoogleGenerativeAI(apiKey);
     const correctionModel = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-pro',
       safetySettings: GEMINI_SAFETY_SETTINGS,
       generationConfig: {
         maxOutputTokens: 32768, // 더 많은 대화를 처리하기 위해 토큰 제한 증가

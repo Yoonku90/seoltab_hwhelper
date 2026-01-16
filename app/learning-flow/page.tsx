@@ -255,7 +255,7 @@ export default function LearningFlowPage() {
 
           <div className={styles.actionButtons}>
             <Link 
-              href={`/review-programs/${recentSummary._id}?studentId=${studentId}`}
+              href={`/admin/lecture-summary?reviewProgramId=${recentSummary._id}`}
               className={styles.primaryButton}
             >
               복습 시작하기 →

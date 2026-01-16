@@ -428,10 +428,51 @@
   font-weight: 700;
 }
 
+.cardNavBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .cardHintText {
   font-size: 11px;
   color: #aaa;
   text-align: center;
+}
+
+.cardProgress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 6px 0 10px;
+}
+
+.cardProgressText {
+  font-size: 11px;
+  color: #cfd8dc;
+}
+
+.cardDots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cardDot,
+.cardDotActive {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  padding: 0;
+}
+
+.cardDotActive {
+  background: #4fc3f7;
+  border-color: #4fc3f7;
 }
 
 .phoneFrame {
@@ -459,6 +500,40 @@
   border-radius: 16px;
   padding: 14px;
   scroll-snap-align: start;
+  perspective: 1200px;
+  cursor: pointer;
+}
+
+.cardInner {
+  position: relative;
+  width: 100%;
+  min-height: 280px;
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
+}
+
+.cardInnerFlipped {
+  transform: rotateY(180deg);
+}
+
+.cardFace,
+.cardBack {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cardBack {
+  transform: rotateY(180deg);
+}
+
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .cardTitle {
@@ -468,12 +543,108 @@
   color: #fff;
 }
 
+.cardCheckedBadge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(79, 195, 247, 0.2);
+  color: #4fc3f7;
+  border: 1px solid rgba(79, 195, 247, 0.35);
+}
+
 .cardBody {
   font-size: 13px;
   line-height: 1.6;
   color: #e0e0e0;
   max-height: 220px;
   overflow: hidden;
+}
+
+.cardActions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cardCheckBtn,
+.cardCheckActive {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.cardCheckBtn {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e0e0e0;
+}
+
+.cardCheckActive {
+  background: rgba(79, 195, 247, 0.2);
+  color: #4fc3f7;
+  border-color: rgba(79, 195, 247, 0.4);
+}
+
+.cardQuiz {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.cardQuizQuestion {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f5f5f5;
+  line-height: 1.5;
+}
+
+.cardQuizAnswer {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #ffd54f;
+}
+
+.cardQuizOptions {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.cardQuizOption,
+.cardQuizOptionCorrect,
+.cardQuizOptionWrong {
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e0e0e0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cardQuizOptionCorrect {
+  border-color: rgba(102, 187, 106, 0.6);
+  background: rgba(102, 187, 106, 0.15);
+  color: #c8e6c9;
+}
+
+.cardQuizOptionWrong {
+  border-color: rgba(239, 83, 80, 0.6);
+  background: rgba(239, 83, 80, 0.15);
+  color: #ffcdd2;
+}
+
+.cardQuizResult {
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b3e5fc;
 }
 
 .cardHint {
@@ -772,5 +943,114 @@
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+.visualAidSection {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+}
+
+.visualAidSection h5 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  color: #90caf9;
+}
+
+.visualAidGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.visualAidCard {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.visualAidHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.visualAidTitle {
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.visualAidDescription {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #9aa4b2;
+}
+
+.visualAidCanvas {
+  width: 100%;
+  height: 220px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px dashed rgba(148, 163, 184, 0.3);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 1024px) {
+  .container {
+    padding: 28px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 20px 16px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+
+  .summaryHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .summaryHeader h4 {
+    font-size: 16px;
+  }
+
+  .teacherMessage,
+  .textbookHighlight,
+  .missedParts,
+  .detailedContent {
+    padding: 12px;
+  }
+
+  .detailedText {
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .phoneFrame {
+    width: 100%;
+  }
+
+  .cardItem {
+    min-width: 80vw;
+    max-width: 80vw;
+  }
+
+  .cardInner {
+    min-height: 240px;
+  }
 }
 

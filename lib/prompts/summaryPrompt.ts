@@ -13,6 +13,7 @@ type BuildSummaryPromptParams = {
   gradeLabel: string | null;
   subject: string;
   subjectGuide: string;
+  curriculumHint?: string | null;
   tutoringDatetime?: string | null;
   sttText?: string | null;
   missedParts: MissedPart[];
@@ -27,6 +28,7 @@ export function buildSummaryPrompt(params: BuildSummaryPromptParams): string {
     gradeLabel,
     subject,
     subjectGuide,
+    curriculumHint,
     tutoringDatetime,
     sttText,
     missedParts,
@@ -38,7 +40,6 @@ export function buildSummaryPrompt(params: BuildSummaryPromptParams): string {
 **유은서 쌤의 말투 규칙 (랑쌤/준쌤 페르소나 참고):**
 - 친근하고 따뜻한 반말 사용 ("~야", "~지", "~해", "~거야")
 - "불안해하지 마, 이것만 꼭 기억해!" 같은 격려하는 톤
-- "10분만 투자하면 4배 효과" 같은 효율 강조
 - 랑쌤/준쌤처럼 친근하고 상냥하게, 학생을 친구처럼 대하면서도 선생님답게
 - 이름을 부를 때는 **성 없이 이름만** 부르기 (예: "소유찬" → "유찬아", "김철수" → "철수야")
 ${displayName ? `- ${displayName}아(야)라고 직접 이름을 불러주기 (자연스럽게, 성 없이 이름만)` : ''}
@@ -50,6 +51,7 @@ ${gradeLabel ? `- 학년: ${gradeLabel}` : ''}
 
 **과목:** ${subject}
 ${subjectGuide}
+${curriculumHint ? `${curriculumHint}\n` : ''}
 ${tutoringDatetime ? `**수업 날짜:** ${new Date(tutoringDatetime).toLocaleDateString('ko-KR')}\n` : ''}
 
 ${sttText ? `**수업 대화 내용 (STT):**\n${sttText}\n\n` : ''}
@@ -95,7 +97,7 @@ ${!sttText ? `⚠️ **중요:** STT가 없으므로 이미지만으로 수업 �
 
 2. **쌤의 한마디** (도입부 - 간결하게):
    ${displayName ? `- "${displayName}아, 아까 쌤이 [핵심 개념] 설명할 때 목소리 엄청 커지셨지? 시험에 무조건 나온대."` : '- "아까 쌤이 [핵심 개념] 설명할 때 목소리 엄청 커지셨지? 시험에 무조건 나온대."'}
-   - "오늘 딱 10분만 투자해서 4배 효과 챙겨가자!"
+   - 수업 내용을 바탕으로 따뜻하고 자신감 주는 말 한두 문장
    - STT에서 선생님이 강조한 핵심 부분만 언급 (너무 길지 않게)
    - 수업 중 선생님이 말한 핵심 표현이나 예시만 포함
 
@@ -128,10 +130,18 @@ ${!sttText ? `⚠️ **중요:** STT가 없으므로 이미지만으로 수업 �
 - 수업 중 풀었던 문제 중에서 **가장 중요한 문제**만 언급
 - **너무 짧지 않게, 너무 길지 않게**: 한 페이지 분량으로, 핵심이 빠지지 않도록
 - ${displayName ? `${displayName}아(야)라고 이름을 자연스럽게 부르며 개인화 (성 없이 이름만)` : '학생을 직접적으로 언급하며 개인화'}
-- "투입 절반, 효과 4배" 같은 효율 메시지 자연스럽게 포함
+- 과장된 효율 표현은 넣지 말고, **수업 내용을 바탕으로 자연스럽게 격려**
 - **선별과 집중**: 모든 것을 담으려 하지 말고, 정말 중요한 것만, 하지만 그 중요한 것들은 충분히 설명
 ${gradeLabel ? `- **학년 수준에 맞게** 설명의 난이도와 예시를 조절 (${gradeLabel} 기준)` : ''}
 - 과목별 가이드를 우선 반영하여 정리
+- **시각 자료 JSON (공통 적용)**:
+  - 수업에 **도형/그래프/도표/차트**가 등장했다면, 반드시 'visualAids' 배열에 JSON으로 포함
+  - 목적은 **핵심 정리를 보조하는 시각 자료**이며, 문제 출제가 아님
+  - 가능한 유형 예시:
+    - 'graph': 함수/좌표/추세선을 개념적으로 표현
+    - 'geometry': 도형과 보조선/각 관계를 표현
+    - 'table': 비교/정리용 표(행/열)
+  - 시각 자료가 없으면 빈 배열 []
 
 **출력 형식 (순수 JSON만 - 코드 블록(\`\`\`) 없이 바로 JSON 객체로 응답):**
 {
@@ -141,6 +151,14 @@ ${gradeLabel ? `- **학년 수준에 맞게** 설명의 난이도와 예시를 �
   "conceptSummary": "",
   "detailedContent": "오늘 수업 핵심 정리 본문만 (개념 + 흐름 통합, 한 섹션). 텍스트만 보고 이해 가능하게 작성",
   "textbookHighlight": "쌤 Tip 본문만 (이미지 없이도 이해되도록 텍스트로 설명, 핵심 규칙/정리만 간결하게)",
+  "visualAids": [
+    {
+      "type": "graph | geometry | table",
+      "title": "시각 자료 제목",
+      "description": "핵심 개념을 보조하는 설명",
+      "data": {}
+    }
+  ],
   "missedParts": ${missedParts.length > 0 ? `[
     {
       "question": "학생이 궁금해했던 질문",

@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-pro',
       safetySettings: GEMINI_SAFETY_SETTINGS,
       generationConfig: {
         maxOutputTokens: 8192, // 요약과 질문만 생성하므로 토큰 제한 축소

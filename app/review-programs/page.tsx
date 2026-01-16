@@ -98,7 +98,7 @@ export default function ReviewProgramsPage() {
                 }}
               >
                 <Link
-                  href={`/review-programs/${rp._id}?studentId=${studentId}`}
+                  href={`/admin/lecture-summary?reviewProgramId=${rp._id}`}
                   style={{
                     flex: 1,
                     textDecoration: 'none',

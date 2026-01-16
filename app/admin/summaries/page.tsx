@@ -290,7 +290,7 @@ export default function AdminSummariesPage() {
 
                 <div className={styles.cardActions}>
                   <Link
-                    href={`/review-programs/${summary._id}`}
+                    href={`/admin/lecture-summary?reviewProgramId=${summary._id}`}
                     target="_blank"
                     className={styles.viewBtn}
                   >

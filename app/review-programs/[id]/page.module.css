@@ -908,10 +908,51 @@
   font-weight: 700;
 }
 
+.cardNavBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .cardHintText {
   font-size: 11px;
   color: #777;
   text-align: center;
+}
+
+.cardProgress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 6px 0 10px;
+}
+
+.cardProgressText {
+  font-size: 11px;
+  color: #666;
+}
+
+.cardDots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cardDot,
+.cardDotActive {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid #d6d6d6;
+  background: #f0f0f0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cardDotActive {
+  background: #ff6b6b;
+  border-color: #ff6b6b;
 }
 
 .cardCarousel {
@@ -931,6 +972,40 @@
   padding: 16px;
   scroll-snap-align: start;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  perspective: 1200px;
+  cursor: pointer;
+}
+
+.cardInner {
+  position: relative;
+  width: 100%;
+  min-height: 260px;
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
+}
+
+.cardInnerFlipped {
+  transform: rotateY(180deg);
+}
+
+.cardFace,
+.cardBack {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cardBack {
+  transform: rotateY(180deg);
+}
+
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .cardTitle {
@@ -939,10 +1014,106 @@
   color: #222;
 }
 
+.cardCheckedBadge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
 .cardBody {
   font-size: 13px;
   line-height: 1.7;
   color: #333;
+}
+
+.cardActions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cardCheckBtn,
+.cardCheckActive {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #e4e4e4;
+}
+
+.cardCheckBtn {
+  background: #fff;
+  color: #555;
+}
+
+.cardCheckActive {
+  background: rgba(255, 107, 107, 0.15);
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.4);
+}
+
+.cardQuiz {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #f7f7f7;
+  border: 1px solid #ececec;
+}
+
+.cardQuizQuestion {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.5;
+}
+
+.cardQuizAnswer {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #ff6b6b;
+}
+
+.cardQuizOptions {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.cardQuizOption,
+.cardQuizOptionCorrect,
+.cardQuizOptionWrong {
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cardQuizOptionCorrect {
+  border-color: rgba(76, 175, 80, 0.5);
+  background: rgba(76, 175, 80, 0.15);
+  color: #2e7d32;
+}
+
+.cardQuizOptionWrong {
+  border-color: rgba(239, 83, 80, 0.5);
+  background: rgba(239, 83, 80, 0.12);
+  color: #c62828;
+}
+
+.cardQuizResult {
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1976d2;
 }
 
 .cardHint {

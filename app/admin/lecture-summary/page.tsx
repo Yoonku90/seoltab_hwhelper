@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import MarkdownMath from '@/app/components/MarkdownMath';
+import VisualAidRenderer from '@/app/components/VisualAidRenderer';
 import styles from './page.module.css';
 
 function resolveString(value: unknown): string {
@@ -33,17 +34,144 @@ function splitNumberedSections(text: string): string[] {
   const cleaned = text.trim();
   if (!cleaned) return [];
 
-  const matches = [...cleaned.matchAll(/(?:^|\n)\s*(\d+)\.\s+/g)];
-  if (matches.length <= 1) return [cleaned];
+  const circled = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
+  const circledMap = new Map(circled.map((c, idx) => [c, String(idx + 1)]));
 
+  const normalizedInline = cleaned
+    .replace(/([^\d])(\d{1,2})\s*([.)-])\s+/g, '$1\n$2. ')
+    .replace(/([①-⑳])\s*/g, '\n$1 ');
+
+  const lines = normalizedInline.split('\n');
   const sections: string[] = [];
-  for (let i = 0; i < matches.length; i++) {
-    const start = matches[i].index ?? 0;
-    const end = i + 1 < matches.length ? (matches[i + 1].index ?? cleaned.length) : cleaned.length;
-    const slice = cleaned.slice(start, end).trim();
-    if (slice) sections.push(slice);
+  let current = '';
+  let hasNumbered = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (current) current += '\n';
+      continue;
+    }
+
+    const circledMatch = trimmed.match(/^([①-⑳])\s*(.*)$/);
+    const numberMatch = trimmed.match(/^(\d{1,2})\s*[.)-]\s*(.*)$/);
+
+    let numberLabel: string | null = null;
+    let rest = trimmed;
+
+    if (circledMatch && circledMap.has(circledMatch[1])) {
+      numberLabel = circledMap.get(circledMatch[1]) || null;
+      rest = circledMatch[2] || '';
+    } else if (numberMatch) {
+      numberLabel = numberMatch[1];
+      rest = numberMatch[2] || '';
+    }
+
+    if (numberLabel) {
+      hasNumbered = true;
+      if (current.trim()) sections.push(current.trim());
+      current = `${numberLabel}. ${rest}`.trim();
+    } else {
+      current = current ? `${current}\n${line}` : line;
+    }
   }
-  return sections.length > 0 ? sections : [cleaned];
+
+  if (current.trim()) sections.push(current.trim());
+  if (hasNumbered && sections.length > 0) return sections;
+
+  return normalizedInline
+    .split(/\n{2,}/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[>#_-]{2,}/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractKeyword(sentence: string): string | null {
+  const boldMatch = sentence.match(/\*\*([^*]{2,})\*\*/);
+  if (boldMatch) return boldMatch[1].trim();
+
+  const quoteMatch = sentence.match(/"([^"]{2,})"/);
+  if (quoteMatch) return quoteMatch[1].trim();
+
+  const bracketMatch = sentence.match(/\[([^\]]{2,})\]/);
+  if (bracketMatch) return bracketMatch[1].trim();
+
+  const stopwords = new Set([
+    '오늘', '수업', '핵심', '정리', '내용', '부분', '문제', '설명', '예시', '규칙', '개념',
+    '학생', '선생님', '쌤', '요약', '포인트', '중요', '정답',
+  ]);
+  const tokens = sentence.match(/[A-Za-z가-힣]{2,}/g) || [];
+  for (const token of tokens) {
+    if (!stopwords.has(token)) return token;
+  }
+  return null;
+}
+
+function formatCardBody(text: string): string {
+  return text
+    .replace(/([^\d])(\d{1,2})\s*([.)-])\s+/g, '$1\n$2. ')
+    .replace(/([①-⑳])\s*/g, '\n$1 ')
+    .replace(/([•\-])\s+/g, '\n$1 ')
+    .replace(/([.!?])\s+(?=[A-Za-z가-힣])/g, '$1\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function resolveVisualAids(value: unknown): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+  }
+  return [];
+}
+
+function buildQuickCheck(text: string, seed: number): {
+  question: string;
+  options: [string, string];
+  answerIndex: number;
+} {
+  const cleaned = stripMarkdown(text);
+  const lines = cleaned.split('\n').map((line) => line.trim()).filter(Boolean);
+  let firstLine = lines[0] || cleaned;
+  firstLine = firstLine.replace(/^\d{1,2}\.\s*/, '').trim();
+  if (firstLine.length < 3 && lines.length > 1) {
+    firstLine = lines[1].replace(/^\d{1,2}\.\s*/, '').trim();
+  }
+  if (!firstLine) {
+    return { question: '빈칸 채우기: ___', options: ['핵심', '다른'], answerIndex: 0 };
+  }
+
+  // 중요 키워드를 찾아 빈칸으로 만들고 2지선다로 제시
+  const keyword = extractKeyword(firstLine) || (firstLine.match(/[A-Za-z가-힣]{2,}/g) || [])[0];
+  const safeKeyword = keyword || '핵심';
+  const blanked = firstLine.replace(safeKeyword, '___');
+  const tokens = (firstLine.match(/[A-Za-z가-힣]{2,}/g) || []).filter((t) => t !== safeKeyword);
+  const distractor = tokens.find((t) => t !== safeKeyword) || '다른 개념';
+  const options: [string, string] = seed % 2 === 0 ? [safeKeyword, distractor] : [distractor, safeKeyword];
+  return {
+    question: `빈칸 채우기: ${blanked}`,
+    options,
+    answerIndex: options[0] === safeKeyword ? 0 : 1,
+  };
 }
 
 export default function LectureSummaryPage() {
@@ -58,6 +186,12 @@ export default function LectureSummaryPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'full' | 'cards'>('full');
   const [testMode, setTestMode] = useState(false);
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [checkedCards, setCheckedCards] = useState<Record<number, boolean>>({});
+  const [quizSelection, setQuizSelection] = useState<Record<number, number | null>>({});
+  const [cardFlipped, setCardFlipped] = useState<Record<number, boolean>>({});
+  const cardScrollRafRef = useRef<number | null>(null);
+  const reviewProgramIdParam = searchParams.get('reviewProgramId');
 
   const generateSummary = async () => {
     if (!roomId.trim()) {
@@ -182,6 +316,175 @@ export default function LectureSummaryPage() {
       .map(([, label]) => label);
   };
 
+  const cardItems = useMemo(() => {
+    if (!summaryResult?.summary) return [];
+    const items = [
+      summaryResult.summary?.teacherMessage
+        ? {
+            title: '💬 쌤의 한마디',
+            body: formatCardBody(resolveString(summaryResult.summary.teacherMessage)),
+            checkable: false,
+          }
+        : null,
+      ...(summaryResult.summary?.detailedContent || summaryResult.summary?.conceptSummary
+        ? splitNumberedSections(
+            resolveString(
+              summaryResult.summary?.detailedContent ||
+                normalizeConceptSummary(resolveString(summaryResult.summary?.conceptSummary || ''))
+            )
+          ).map((section, idx) => ({
+            title: `📖 오늘 수업 핵심 정리 ${idx + 1}`,
+            body: formatCardBody(section),
+            checkable: true,
+          }))
+        : []),
+      summaryResult.summary?.textbookHighlight
+        ? {
+            title: '📖 쌤 Tip',
+            body: formatCardBody(resolveString(summaryResult.summary.textbookHighlight)),
+            checkable: false,
+          }
+        : null,
+      summaryResult.summary?.missedParts && summaryResult.summary.missedParts.length > 0
+        ? {
+            title: '❓ 학생 질문 정리',
+            body: formatCardBody(summaryResult.summary.missedParts
+              .map((part: any) => {
+                const lines = [
+                  part.question ? `• 질문: ${part.question}` : '',
+                  part.contextMeaning ? `  - 문맥: ${part.contextMeaning}` : '',
+                  part.whatNotUnderstood ? `  - 모르던 부분: ${part.whatNotUnderstood}` : '',
+                  part.whatToKnow ? `  - 알아야 할 것: ${part.whatToKnow}` : '',
+                  part.explanation ? `  - 설명: ${part.explanation}` : '',
+                ].filter(Boolean);
+                return lines.join('\n');
+              })
+              .join('\n\n')),
+            checkable: false,
+          }
+        : null,
+      summaryResult.summary?.encouragement
+        ? {
+            title: '✨ 마무리 응원',
+            body: formatCardBody(summaryResult.summary.encouragement),
+            checkable: false,
+          }
+        : null,
+    ];
+
+    return items.filter(Boolean) as Array<{ title: string; body: string; checkable: boolean }>;
+  }, [summaryResult]);
+
+  useEffect(() => {
+    setActiveCardIndex(0);
+    setCheckedCards({});
+    setQuizSelection({});
+    setCardFlipped({});
+    if (cardScrollRef.current) {
+      cardScrollRef.current.scrollTo({ left: 0 });
+    }
+  }, [summaryResult]);
+
+  useEffect(() => {
+    if (!reviewProgramIdParam) return;
+
+    const loadReviewProgram = async () => {
+      try {
+        setIsGenerating(true);
+        setError(null);
+        setSummaryResult(null);
+
+        const res = await fetch(`/api/review-programs/${reviewProgramIdParam}`);
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.reviewProgram) {
+          const message = data?.error || '요약본을 불러오지 못했습니다.';
+          throw new Error(message);
+        }
+
+        const rp = data.reviewProgram;
+        setRoomId(rp.metadata?.roomId || '');
+        setSummaryResult({
+          reviewProgramId: rp._id?.toString?.() || reviewProgramIdParam,
+          roomId: rp.metadata?.roomId || null,
+          studentId: rp.studentId || null,
+          studentName: rp.studentName || null,
+          summary: rp.reviewContent || {},
+          imagesUsed: rp.metadata?.imageUrls || rp.reviewContent?.imagesInOrder || [],
+        });
+      } catch (err: any) {
+        console.error('[lecture-summary] 요약본 조회 실패:', err);
+        setError(err.message || '요약본을 불러오는 중 오류가 발생했습니다.');
+      } finally {
+        setIsGenerating(false);
+      }
+    };
+
+    loadReviewProgram();
+  }, [reviewProgramIdParam]);
+
+  const scrollToCard = (index: number) => {
+    const container = cardScrollRef.current;
+    if (!container) return;
+    const total = cardItems.length;
+    if (total === 0) return;
+    const clampedIndex = Math.min(Math.max(index, 0), total - 1);
+    const cardEl = container.children.item(clampedIndex) as HTMLElement | null;
+    if (cardEl) {
+      container.scrollTo({ left: cardEl.offsetLeft, behavior: 'smooth' });
+    }
+  };
+
+  const handleCardScroll = () => {
+    const container = cardScrollRef.current;
+    if (!container || container.children.length === 0) return;
+
+    if (cardScrollRafRef.current) {
+      cancelAnimationFrame(cardScrollRafRef.current);
+    }
+
+    cardScrollRafRef.current = requestAnimationFrame(() => {
+      const cards = Array.from(container.children) as HTMLElement[];
+      const center = container.scrollLeft + container.clientWidth / 2;
+      let nearestIndex = 0;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      cards.forEach((card, idx) => {
+        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+        const distance = Math.abs(cardCenter - center);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestIndex = idx;
+        }
+      });
+
+      setActiveCardIndex(nearestIndex);
+    });
+  };
+
+  const toggleCardChecked = (index: number) => {
+    setCheckedCards((prev) => ({
+      ...prev,
+      [index]: !prev[index],
+    }));
+  };
+
+  const handleQuizSelect = (index: number, optionIndex: number, isCorrect: boolean) => {
+    setQuizSelection((prev) => ({ ...prev, [index]: optionIndex }));
+    if (isCorrect) {
+      setCheckedCards((checked) => ({ ...checked, [index]: true }));
+    }
+  };
+
+  const toggleCardFlip = (index: number) => {
+    setCardFlipped((prev) => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const checkableTotal = cardItems.filter((card) => card.checkable).length;
+  const checkedCount = cardItems.reduce(
+    (count, card, idx) => (card.checkable && checkedCards[idx] ? count + 1 : count),
+    0
+  );
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -265,6 +568,16 @@ export default function LectureSummaryPage() {
             <div className={styles.summaryHeader}>
               <h2 className={styles.summaryTitle}>✨ 유은서 쌤이 방금 만든 따끈따끈한 비법 노트!</h2>
               <div className={styles.summaryActions}>
+                <label className={styles.toggleLabel}>
+                  <input
+                    type="checkbox"
+                    className={styles.toggleInput}
+                    checked={testMode}
+                    onChange={(e) => setTestMode(e.target.checked)}
+                    disabled={isGenerating}
+                  />
+                  테스트 모드
+                </label>
                 {testMode && (
                   <button
                     onClick={handleRegenerateWithUpdatedPrompt}
@@ -304,7 +617,7 @@ export default function LectureSummaryPage() {
                 {summaryResult.reviewProgramId && (
                   <p className={styles.summaryLink}>
                     <a 
-                      href={`/review-programs/${summaryResult.reviewProgramId}`}
+                      href={`/admin/lecture-summary?reviewProgramId=${summaryResult.reviewProgramId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -336,9 +649,8 @@ export default function LectureSummaryPage() {
                       <button
                         className={styles.cardNavBtn}
                         type="button"
-                        onClick={() =>
-                          cardScrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })
-                        }
+                        onClick={() => scrollToCard(activeCardIndex - 1)}
+                        disabled={activeCardIndex === 0}
                       >
                         ◀
                       </button>
@@ -348,63 +660,113 @@ export default function LectureSummaryPage() {
                       <button
                         className={styles.cardNavBtn}
                         type="button"
-                        onClick={() =>
-                          cardScrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })
-                        }
+                        onClick={() => scrollToCard(activeCardIndex + 1)}
+                        disabled={activeCardIndex >= cardItems.length - 1}
                       >
                         ▶
                       </button>
                     </div>
-                    <div className={styles.cardCarousel} ref={cardScrollRef}>
-                  {[
-                    summaryResult.summary?.teacherMessage
-                      ? { title: '💬 쌤의 한마디', body: resolveString(summaryResult.summary.teacherMessage) }
-                      : null,
-                    ...(summaryResult.summary?.detailedContent || summaryResult.summary?.conceptSummary
-                      ? splitNumberedSections(
-                          resolveString(
-                            summaryResult.summary?.detailedContent ||
-                              normalizeConceptSummary(resolveString(summaryResult.summary?.conceptSummary || ''))
-                          )
-                        ).map((section, idx) => ({
-                          title: `📖 오늘 수업 핵심 정리 ${idx + 1}`,
-                          body: section,
-                        }))
-                      : []),
-                    summaryResult.summary?.textbookHighlight
-                      ? { title: '📖 쌤 Tip', body: resolveString(summaryResult.summary.textbookHighlight) }
-                      : null,
-                    summaryResult.summary?.missedParts && summaryResult.summary.missedParts.length > 0
-                      ? {
-                          title: '❓ 학생 질문 정리',
-                          body: summaryResult.summary.missedParts
-                            .map((part: any) => {
-                              const lines = [
-                                part.question ? `• 질문: ${part.question}` : '',
-                                part.contextMeaning ? `  - 문맥: ${part.contextMeaning}` : '',
-                                part.whatNotUnderstood ? `  - 모르던 부분: ${part.whatNotUnderstood}` : '',
-                                part.whatToKnow ? `  - 알아야 할 것: ${part.whatToKnow}` : '',
-                                part.explanation ? `  - 설명: ${part.explanation}` : '',
-                              ].filter(Boolean);
-                              return lines.join('\n');
-                            })
-                            .join('\n\n'),
-                        }
-                      : null,
-                    summaryResult.summary?.encouragement
-                      ? { title: '✨ 마무리 응원', body: summaryResult.summary.encouragement }
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .map((card: any, idx: number) => (
-                      <div key={idx} className={styles.cardItem}>
-                        <div className={styles.cardTitle}>{card.title}</div>
-                        <div className={styles.cardBody}>
-                          <MarkdownMath content={card.body} />
+                    {cardItems.length > 0 && (
+                      <div className={styles.cardProgress}>
+                        <span className={styles.cardProgressText}>
+                          {activeCardIndex + 1} / {cardItems.length}
+                          {checkableTotal > 0 ? ` · 확인 완료 ${checkedCount}/${checkableTotal}` : ''}
+                        </span>
+                        <div className={styles.cardDots}>
+                          {cardItems.map((_, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              className={idx === activeCardIndex ? styles.cardDotActive : styles.cardDot}
+                              aria-label={`카드 ${idx + 1}로 이동`}
+                              onClick={() => scrollToCard(idx)}
+                            />
+                          ))}
                         </div>
-                        <div className={styles.cardHint}>좌우로 넘겨서 보기 →</div>
                       </div>
-                    ))}
+                    )}
+                    <div className={styles.cardCarousel} ref={cardScrollRef} onScroll={handleCardScroll}>
+                      {cardItems.map((card, idx: number) => {
+                        const quickCheck = card.checkable ? buildQuickCheck(card.body, idx) : null;
+                        const isFlipped = !!cardFlipped[idx];
+                        return (
+                          <div
+                            key={idx}
+                            className={styles.cardItem}
+                            onClick={() => toggleCardFlip(idx)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleCardFlip(idx);
+                              }
+                            }}
+                          >
+                            <div
+                              className={`${styles.cardInner} ${isFlipped ? styles.cardInnerFlipped : ''}`}
+                            >
+                              <div className={styles.cardFace}>
+                                <div className={styles.cardTitleRow}>
+                                  <div className={styles.cardTitle}>{card.title}</div>
+                                  {checkedCards[idx] && (
+                                    <span className={styles.cardCheckedBadge}>확인 완료</span>
+                                  )}
+                                </div>
+                                <div className={styles.cardBody}>
+                                  <MarkdownMath content={card.body} />
+                                </div>
+                                <div className={styles.cardHint}>카드를 눌러 뒤집기 →</div>
+                              </div>
+                              <div className={styles.cardBack}>
+                                {card.checkable && quickCheck ? (
+                                  <div className={styles.cardQuiz}>
+                                    <div className={styles.cardQuizQuestion}>{quickCheck.question}</div>
+                                    <div className={styles.cardQuizOptions}>
+                                      {quickCheck.options.map((option, optionIdx) => {
+                                        const selected = quizSelection[idx] === optionIdx;
+                                        const isCorrect = optionIdx === quickCheck.answerIndex;
+                                        const variantClass = selected
+                                          ? isCorrect
+                                            ? styles.cardQuizOptionCorrect
+                                            : styles.cardQuizOptionWrong
+                                          : styles.cardQuizOption;
+                                        return (
+                                          <button
+                                            key={option}
+                                            type="button"
+                                            className={variantClass}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleQuizSelect(idx, optionIdx, isCorrect);
+                                            }}
+                                          >
+                                            {option}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                    {quizSelection[idx] != null && (
+                                      <div className={styles.cardQuizResult}>
+                                        {quizSelection[idx] === quickCheck.answerIndex
+                                          ? '정답이야! 👍'
+                                          : '앗, 다시 생각해볼까?'}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className={styles.cardQuiz}>
+                                    <div className={styles.cardQuizQuestion}>
+                                      이 카드는 확인 문제가 없어요.
+                                    </div>
+                                  </div>
+                                )}
+                                <div className={styles.cardHint}>앞면으로 돌아가기 ←</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -544,6 +906,30 @@ export default function LectureSummaryPage() {
                 </div>
               )}
 
+              {viewMode === 'full' && resolveVisualAids(summaryResult.summary?.visualAids).length > 0 && (
+                <div className={styles.visualAidSection}>
+                  <h5>📐 시각 자료</h5>
+                  <div className={styles.visualAidGrid}>
+                    {resolveVisualAids(summaryResult.summary?.visualAids).map((aid: any, idx: number) => {
+                      const title = aid?.title || `시각 자료 ${idx + 1}`;
+                      const description = aid?.description || '';
+                      const shape = aid?.type ? aid : { type: aid?.type || 'geometry', data: aid?.data || aid };
+                      return (
+                        <div key={idx} className={styles.visualAidCard}>
+                          <div className={styles.visualAidHeader}>
+                            <span className={styles.visualAidTitle}>{title}</span>
+                          </div>
+                          {description && <p className={styles.visualAidDescription}>{description}</p>}
+                          <div className={styles.visualAidCanvas}>
+                            <VisualAidRenderer shape={shape} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* 교재 강조 부분 */}
               {viewMode === 'full' && summaryResult.summary?.textbookHighlight && (
                 <div className={styles.textbookHighlight}>
@@ -625,7 +1011,7 @@ export default function LectureSummaryPage() {
                 {summaryResult.reviewProgramId && (
                   <div className={styles.metaRow}>
                     <a 
-                      href={`/review-programs/${summaryResult.reviewProgramId}`}
+                      href={`/admin/lecture-summary?reviewProgramId=${summaryResult.reviewProgramId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={styles.programLink}
