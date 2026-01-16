@@ -14,8 +14,8 @@ export default function HomePage() {
       <section className={styles.menuGrid}>
         <Link href="/admin/lecture-summary" className={styles.menuCard}>
           <div className={styles.menuIcon}>✨</div>
-          <div className={styles.menuTitle}>요약본 생성/보기</div>
-          <div className={styles.menuDesc}>Room ID로 요약본 확인, 테스트 모드 포함</div>
+          <div className={styles.menuTitle}>요약본 생성</div>
+          <div className={styles.menuDesc}>Room ID로 요약본 생성, 테스트 모드 포함</div>
         </Link>
 
         <Link href="/admin/summaries" className={styles.menuCard}>

@@ -532,9 +532,6 @@ export default function ReviewProgramDetailPage() {
               .join('\n\n'),
           }
         : null,
-      imageSectionAvailable
-        ? { title: '🖼️ 수업 교재 이미지', body: '아래 카드에서 확인 가능' }
-        : null,
       summaryContent.encouragement
         ? { title: '✨ 마무리 응원', body: resolveString(summaryContent.encouragement) }
         : null,

@@ -391,12 +391,6 @@ export default function LectureSummaryPage() {
                             .join('\n\n'),
                         }
                       : null,
-                    summaryResult.imagesUsed && summaryResult.imagesUsed.length > 0
-                      ? {
-                          title: '🖼️ 수업 교재 이미지',
-                          body: summaryResult.imagesUsed.map((url: string, idx: number) => `이미지 ${idx + 1}: ${url}`).join('\n'),
-                        }
-                      : null,
                     summaryResult.summary?.encouragement
                       ? { title: '✨ 마무리 응원', body: summaryResult.summary.encouragement }
                       : null,
