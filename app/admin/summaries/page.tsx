@@ -26,6 +26,8 @@ export default function AdminSummariesPage() {
   const [searchStudentId, setSearchStudentId] = useState('');
   const [filteredSummaries, setFilteredSummaries] = useState<Summary[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   useEffect(() => {
     fetchSummaries();
@@ -59,12 +61,35 @@ export default function AdminSummariesPage() {
       if (data.success && data.summaries) {
         setSummaries(data.summaries);
         setFilteredSummaries(data.summaries);
+        setSelectedIds(new Set());
       }
     } catch (error) {
       console.error('요약본 목록 로드 실패:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleSelectAll = () => {
+    if (filteredSummaries.length === 0) return;
+    const allSelected = filteredSummaries.every((s) => selectedIds.has(s._id));
+    const next = new Set(selectedIds);
+    if (allSelected) {
+      filteredSummaries.forEach((s) => next.delete(s._id));
+    } else {
+      filteredSummaries.forEach((s) => next.add(s._id));
+    }
+    setSelectedIds(next);
+  };
+
+  const toggleSelectOne = (summaryId: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(summaryId)) {
+      next.delete(summaryId);
+    } else {
+      next.add(summaryId);
+    }
+    setSelectedIds(next);
   };
 
   const handleDeleteSummary = async (summaryId: string) => {
@@ -85,6 +110,46 @@ export default function AdminSummariesPage() {
       alert('요약본 삭제에 실패했습니다.');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    const confirmed = window.confirm(`선택한 요약본 ${selectedIds.size}개를 삭제할까요? 삭제 후 복구할 수 없습니다.`);
+    if (!confirmed) return;
+
+    try {
+      setIsBulkDeleting(true);
+      await Promise.all(
+        Array.from(selectedIds).map((id) =>
+          fetch(`/api/review-programs/${id}`, { method: 'DELETE' })
+        )
+      );
+      await fetchSummaries();
+    } catch (error) {
+      console.error('선택 삭제 실패:', error);
+      alert('선택한 요약본 삭제에 실패했습니다.');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (summaries.length === 0) return;
+    const confirmed = window.confirm(`모든 요약본 ${summaries.length}개를 삭제할까요? 삭제 후 복구할 수 없습니다.`);
+    if (!confirmed) return;
+
+    try {
+      setIsBulkDeleting(true);
+      await Promise.all(
+        summaries.map((s) => fetch(`/api/review-programs/${s._id}`, { method: 'DELETE' }))
+      );
+      await fetchSummaries();
+    } catch (error) {
+      console.error('전체 삭제 실패:', error);
+      alert('전체 요약본 삭제에 실패했습니다.');
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -129,6 +194,36 @@ export default function AdminSummariesPage() {
         </button>
       </section>
 
+      <section className={styles.bulkActions}>
+        <label className={styles.selectAllLabel}>
+          <input
+            type="checkbox"
+            checked={
+              filteredSummaries.length > 0 &&
+              filteredSummaries.every((s) => selectedIds.has(s._id))
+            }
+            onChange={toggleSelectAll}
+          />
+          전체 선택
+        </label>
+        <div className={styles.bulkButtons}>
+          <button
+            className={styles.bulkBtn}
+            onClick={handleDeleteSelected}
+            disabled={selectedIds.size === 0 || isBulkDeleting}
+          >
+            선택 삭제
+          </button>
+          <button
+            className={styles.bulkDangerBtn}
+            onClick={handleDeleteAll}
+            disabled={summaries.length === 0 || isBulkDeleting}
+          >
+            전체 삭제
+          </button>
+        </div>
+      </section>
+
       {/* 요약본 목록 */}
       <section className={styles.listSection}>
         {loading ? (
@@ -144,6 +239,13 @@ export default function AdminSummariesPage() {
             {filteredSummaries.map((summary) => (
               <div key={summary._id} className={styles.summaryCard}>
                 <div className={styles.cardHeader}>
+                  <label className={styles.cardCheckbox}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(summary._id)}
+                      onChange={() => toggleSelectOne(summary._id)}
+                    />
+                  </label>
                   <h3 className={styles.cardTitle}>{summary.title}</h3>
                   {summary.metadata?.isSecretNote && (
                     <span className={styles.secretBadge}>✨ 시크릿 노트</span>

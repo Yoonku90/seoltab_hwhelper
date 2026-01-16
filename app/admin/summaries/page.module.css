@@ -48,6 +48,72 @@
   align-items: flex-end;
 }
 
+.bulkActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #141414;
+  border: 1px solid #2f2f2f;
+  border-radius: 10px;
+  margin-bottom: 24px;
+}
+
+.selectAllLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #cfcfcf;
+}
+
+.bulkButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.bulkBtn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #3a3a3a;
+  background: #222;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bulkBtn:hover {
+  border-color: #4fc3f7;
+  color: #fff;
+}
+
+.bulkDangerBtn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #5a2a2a;
+  background: rgba(255, 82, 82, 0.15);
+  color: #ff8a80;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bulkDangerBtn:hover {
+  background: rgba(255, 82, 82, 0.25);
+  border-color: #ff5252;
+  color: #fff;
+}
+
+.bulkBtn:disabled,
+.bulkDangerBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .filterGroup {
   display: flex;
   flex-direction: column;
@@ -133,6 +199,17 @@
   align-items: flex-start;
   margin-bottom: 16px;
   gap: 12px;
+}
+
+.cardCheckbox {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
+.cardCheckbox input {
+  width: 16px;
+  height: 16px;
 }
 
 .cardTitle {

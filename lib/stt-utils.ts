@@ -226,7 +226,7 @@ export async function correctStt(
     });
 
     // 보정용 프롬프트
-    const correctionPrompt = `당신은 수업 STT 데이터 보정 전문가입니다. 다음 STT 데이터를 문맥에 맞게 보정해주세요.
+    const correctionPrompt = `당신은 수업 STT 데이터 보정 전문가입니다. 다음 STT 데이터를 **문맥에 맞게** 보정해주세요.
 
 **STT 대화 데이터 (모든 대화 포함):**
 ${conversations
@@ -238,6 +238,8 @@ ${conversations
    - 예: "관계대명사"가 "관계 대명사"로 잘못 띄어쓰기 된 경우 → "관계대명사"로 수정
    - 예: 오타 수정, 문맥에 맞지 않는 단어 교정
    - 예: "이거" → "이것", "그거" → "그것" 등 자연스러운 표현으로 수정
+   - 수업 맥락을 보고 **동음이의어/유사 발음**을 올바른 용어로 보정
+   - 수학/영어/과학 등 **교과 용어는 표준 표기**로 수정
 
 2. **화자(speaker) 판단 및 보정**: 문맥을 분석하여 화자가 올바르게 설정되었는지 확인
    - JSON의 speaker 정보가 "teacher" 또는 "student"로 되어 있지만, 문맥상 다르게 판단되는 경우 수정
@@ -248,7 +250,8 @@ ${conversations
      * 학생: 질문하기, 답변하기, "모르겠어요", "네", "아니요" 같은 반응
 
 3. **원본 내용 최대한 유지**: 보정은 최소한으로, 명확한 오인식만 수정
-4. **모든 대화 포함**: 입력된 모든 대화를 반드시 출력에 포함 (일부만 선택하지 말 것)
+4. **문맥 보정**: 앞뒤 대화 흐름을 보고 어색한 단어/어미만 자연스럽게 보정
+5. **모든 대화 포함**: 입력된 모든 대화를 반드시 출력에 포함 (일부만 선택하지 말 것)
 
 **출력 형식 (JSON):**
 {
@@ -270,7 +273,9 @@ ${conversations
 - STT 보정은 최소한으로, 오타나 명확한 오인식만 수정
 - 원본 내용을 최대한 유지
 - **모든 대화를 반드시 포함** (입력된 대화 수와 출력된 대화 수가 동일해야 함)
-- 화자 판단은 문맥을 기준으로 정확하게 해야 함`;
+- 화자 판단은 문맥을 기준으로 정확하게 해야 함
+- **새로운 내용 추가 금지** (추측/각색/요약 금지)
+- 한국어로 출력`;
 
     const correctionResult = await correctionModel.generateContent({
       contents: [{ role: 'user', parts: [{ text: correctionPrompt }] }],
@@ -280,6 +285,10 @@ ${conversations
     const correctionData = parseJsonWithFallback(correctionResponseText);
 
     if (correctionData && correctionData.correctedConversations && Array.isArray(correctionData.correctedConversations)) {
+      if (correctionData.correctedConversations.length !== conversations.length) {
+        console.warn('[stt-utils] STT 보정 대화 수 불일치, 원본 사용');
+        return conversations;
+      }
       const corrected = correctionData.correctedConversations.map((corr: any) => {
         const original = conversations[corr.index - 1] || conversations.find((c) => c.speaker === corr.speaker);
         return {
