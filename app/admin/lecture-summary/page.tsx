@@ -54,13 +54,12 @@ export default function LectureSummaryPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summaryResult, setSummaryResult] = useState<any>(null);
+  const [previousSummaryResult, setPreviousSummaryResult] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'full' | 'cards'>('full');
   const [testMode, setTestMode] = useState(false);
 
-  const handleGenerateSummary = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const generateSummary = async () => {
     if (!roomId.trim()) {
       setError('Room ID를 입력해주세요.');
       return;
@@ -152,6 +151,37 @@ export default function LectureSummaryPage() {
     }
   };
 
+  const handleGenerateSummary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await generateSummary();
+  };
+
+  const handleRegenerateWithUpdatedPrompt = async () => {
+    if (!summaryResult) return;
+    setPreviousSummaryResult(summaryResult);
+    await generateSummary();
+  };
+
+  const getChangedSections = (prev: any, next: any): string[] => {
+    if (!prev?.summary || !next?.summary) return [];
+    const fields: Array<[string, string]> = [
+      ['teacherMessage', '쌤의 한마디'],
+      ['detailedContent', '오늘 수업 핵심 정리'],
+      ['textbookHighlight', '쌤 Tip'],
+      ['missedParts', '학생 질문 정리'],
+      ['encouragement', '마무리 응원'],
+    ];
+
+    const normalizeValue = (value: any) => {
+      if (typeof value === 'string') return value.trim();
+      return JSON.stringify(value || '');
+    };
+
+    return fields
+      .filter(([key]) => normalizeValue(prev.summary?.[key]) !== normalizeValue(next.summary?.[key]))
+      .map(([, label]) => label);
+  };
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -234,15 +264,26 @@ export default function LectureSummaryPage() {
           <div className={styles.summaryCard}>
             <div className={styles.summaryHeader}>
               <h2 className={styles.summaryTitle}>✨ 유은서 쌤이 방금 만든 따끈따끈한 비법 노트!</h2>
-              <button
-                onClick={() => {
-                  setSummaryResult(null);
-                  setRoomId('');
-                }}
-                className={styles.backButton}
-              >
-                새로 만들기
-              </button>
+              <div className={styles.summaryActions}>
+                {testMode && (
+                  <button
+                    onClick={handleRegenerateWithUpdatedPrompt}
+                    className={styles.secondaryButton}
+                    disabled={isGenerating}
+                  >
+                    프롬프트 변경 재생성
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setSummaryResult(null);
+                    setRoomId('');
+                  }}
+                  className={styles.backButton}
+                >
+                  새로 만들기
+                </button>
+              </div>
             </div>
 
             <div className={styles.summaryContent}>
@@ -370,6 +411,75 @@ export default function LectureSummaryPage() {
                         <div className={styles.cardHint}>좌우로 넘겨서 보기 →</div>
                       </div>
                     ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {testMode && previousSummaryResult?.summary && summaryResult?.summary && (
+                <div className={styles.compareSection}>
+                  <h4 className={styles.compareTitle}>🧪 프롬프트 수정 전/후 비교</h4>
+                  {getChangedSections(previousSummaryResult, summaryResult).length > 0 && (
+                    <div className={styles.diffList}>
+                      변경된 항목: {getChangedSections(previousSummaryResult, summaryResult).join(', ')}
+                    </div>
+                  )}
+                  <div className={styles.compareGrid}>
+                    <div className={styles.compareCard}>
+                      <h5>Before</h5>
+                      <div className={styles.compareBlock}>
+                        <strong>쌤의 한마디</strong>
+                        <MarkdownMath content={resolveString(previousSummaryResult.summary?.teacherMessage || '')} />
+                      </div>
+                      <div className={styles.compareBlock}>
+                        <strong>오늘 수업 핵심 정리</strong>
+                        <MarkdownMath
+                          content={resolveString(
+                            previousSummaryResult.summary?.detailedContent ||
+                              normalizeConceptSummary(resolveString(previousSummaryResult.summary?.conceptSummary || ''))
+                          )}
+                        />
+                      </div>
+                      <div className={styles.compareBlock}>
+                        <strong>쌤 Tip</strong>
+                        <MarkdownMath content={resolveString(previousSummaryResult.summary?.textbookHighlight || '')} />
+                      </div>
+                      <div className={styles.compareBlock}>
+                        <strong>학생 질문 정리</strong>
+                        <MarkdownMath content={resolveString(previousSummaryResult.summary?.missedParts || '')} />
+                      </div>
+                      <div className={styles.compareBlock}>
+                        <strong>마무리 응원</strong>
+                        <MarkdownMath content={resolveString(previousSummaryResult.summary?.encouragement || '')} />
+                      </div>
+                    </div>
+                    <div className={styles.compareCard}>
+                      <h5>After</h5>
+                      <div className={styles.compareBlock}>
+                        <strong>쌤의 한마디</strong>
+                        <MarkdownMath content={resolveString(summaryResult.summary?.teacherMessage || '')} />
+                      </div>
+                      <div className={styles.compareBlock}>
+                        <strong>오늘 수업 핵심 정리</strong>
+                        <MarkdownMath
+                          content={resolveString(
+                            summaryResult.summary?.detailedContent ||
+                              normalizeConceptSummary(resolveString(summaryResult.summary?.conceptSummary || ''))
+                          )}
+                        />
+                      </div>
+                      <div className={styles.compareBlock}>
+                        <strong>쌤 Tip</strong>
+                        <MarkdownMath content={resolveString(summaryResult.summary?.textbookHighlight || '')} />
+                      </div>
+                      <div className={styles.compareBlock}>
+                        <strong>학생 질문 정리</strong>
+                        <MarkdownMath content={resolveString(summaryResult.summary?.missedParts || '')} />
+                      </div>
+                      <div className={styles.compareBlock}>
+                        <strong>마무리 응원</strong>
+                        <MarkdownMath content={resolveString(summaryResult.summary?.encouragement || '')} />
+                      </div>
                     </div>
                   </div>
                 </div>

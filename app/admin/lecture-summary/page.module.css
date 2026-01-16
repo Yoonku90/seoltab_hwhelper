@@ -217,6 +217,76 @@
   border-bottom: 2px solid rgba(255, 107, 107, 0.3);
 }
 
+.summaryActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.secondaryButton {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.secondaryButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.compareSection {
+  margin-top: 32px;
+  padding: 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.compareTitle {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.diffList {
+  font-size: 12px;
+  color: #bdbdbd;
+  margin-bottom: 16px;
+}
+
+.compareGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.compareCard {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.compareCard h5 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #ffcc80;
+}
+
+.compareBlock {
+  margin-bottom: 12px;
+}
+
+.compareBlock strong {
+  display: block;
+  font-size: 12px;
+  color: #9ad0f5;
+  margin-bottom: 4px;
+}
 .summaryTitle {
   font-size: 24px;
   font-weight: 700;
