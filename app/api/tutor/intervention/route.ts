@@ -253,8 +253,8 @@ ${problem.problemText || '문제 이미지를 확인해주세요.'}
         ],
         createdAt: now,
         updatedAt: now,
-      };
-      await aiTutorSessions.insertOne(session);
+      } as any;
+      await aiTutorSessions.insertOne(session as any);
     } else {
       await aiTutorSessions.updateOne(
         { _id: session._id },
