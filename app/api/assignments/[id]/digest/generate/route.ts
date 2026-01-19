@@ -5,10 +5,10 @@ import { ObjectId } from 'mongodb';
 // POST /api/assignments/:id/digest/generate - Digest 생성
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const assignmentId = params.id;
+    const { id: assignmentId } = await params;
 
     if (!ObjectId.isValid(assignmentId)) {
       return NextResponse.json(
