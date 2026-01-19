@@ -63,7 +63,7 @@ export async function POST(
         problemId,
         studentId,
         step: { $lt: step },
-      })
+      } as any)
       .sort({ step: 1 })
       .toArray();
 
