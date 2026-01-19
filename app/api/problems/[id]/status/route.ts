@@ -48,7 +48,7 @@ export async function POST(
 
     // 문제의 최신 상태 업데이트
     await problems.updateOne(
-      { _id: new ObjectId(problemId) },
+      { _id: new ObjectId(problemId) } as any,
       {
         $set: {
           'latestAttempt.status': status as ProblemStatus,
@@ -74,7 +74,7 @@ export async function POST(
     const assignments = await Collections.assignments();
     const assignment = await assignments.findOne({
       _id: new ObjectId(problem.assignmentId),
-    });
+    } as any);
 
     if (assignment) {
       // 이전 상태에서 카운트 감소
@@ -97,7 +97,7 @@ export async function POST(
       }
 
       await assignments.updateOne(
-        { _id: new ObjectId(problem.assignmentId) },
+        { _id: new ObjectId(problem.assignmentId) } as any,
         {
           $set: {
             progress: assignment.progress,

@@ -71,7 +71,7 @@ export async function GET() {
 
     // 진행률 업데이트
     await assignments.updateOne(
-      { _id: new ObjectId(assignmentId) },
+      { _id: new ObjectId(assignmentId) } as any,
       {
         $set: {
           progress: {

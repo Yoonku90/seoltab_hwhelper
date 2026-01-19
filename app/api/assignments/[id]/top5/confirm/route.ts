@@ -39,7 +39,7 @@ export async function POST(
       .find({
         _id: { $in: problemIds.map((id: string) => new ObjectId(id)) },
         assignmentId,
-      })
+      } as any)
       .toArray();
 
     if (problemList.length !== problemIds.length) {
@@ -79,7 +79,7 @@ export async function POST(
     // 과제에 Top5 확정 표시
     const assignments = await Collections.assignments();
     await assignments.updateOne(
-      { _id: new ObjectId(assignmentId) },
+      { _id: new ObjectId(assignmentId) } as any,
       {
         $set: {
           top5Confirmed: true,
