@@ -2,7 +2,7 @@ import { H1_RAG_CURRICULUM_2022 } from '@/lib/curriculum/h1';
 import { H2H3_GENERAL_ELECTIVES_2022 } from '@/lib/curriculum/h23';
 import { M1_RAG_CURRICULUM_2022 } from '@/lib/curriculum/m1';
 import { M2_RAG_CURRICULUM_2022 } from '@/lib/curriculum/m2';
-import { M3_RAG_CURRICULUM_2022 } from '@/lib/curriculum/m3';
+import { M3_RAG_CURRICULUM_2015 } from '@/lib/curriculum/m3';
 
 type BaseSubunit = {
   title: string;
@@ -37,6 +37,22 @@ type BuildCurriculumHintParams = {
   gradeLabel?: string | null;
 };
 
+export type CurriculumReferenceMatch = {
+  score: number;
+  subjectKr: string;
+  course: string;
+  unitTitle: string;
+  subunitTitle: string;
+  concepts: string[];
+  matchedKeywords: string[];
+};
+
+export type CurriculumReference = {
+  gradeLabel: string | null;
+  subject: string | null;
+  matches: CurriculumReferenceMatch[];
+};
+
 function normalizeText(input: string): string {
   return input.toLowerCase();
 }
@@ -56,7 +72,7 @@ function resolveCurriculumByGrade(gradeLabel?: string | null): BaseUnit[] | null
   const label = typeof gradeLabel === 'string' ? gradeLabel : '';
   if (label.includes('중1')) return M1_RAG_CURRICULUM_2022 as unknown as BaseUnit[];
   if (label.includes('중2')) return M2_RAG_CURRICULUM_2022 as unknown as BaseUnit[];
-  if (label.includes('중3')) return M3_RAG_CURRICULUM_2022 as unknown as BaseUnit[];
+  if (label.includes('중3')) return M3_RAG_CURRICULUM_2015 as unknown as BaseUnit[];
   if (label.includes('고1')) return H1_RAG_CURRICULUM_2022 as unknown as BaseUnit[];
   if (label.includes('고2') || label.includes('고3')) {
     return H2H3_GENERAL_ELECTIVES_2022 as unknown as BaseUnit[];
@@ -128,5 +144,30 @@ export function buildCurriculumHint(params: BuildCurriculumHintParams): string |
     .join('\n');
 
   return `**커리큘럼 힌트 (RAG 매칭 결과):**\n${topMatches}`;
+}
+
+export function buildCurriculumReference(params: BuildCurriculumHintParams): CurriculumReference | null {
+  const { sttText, subject, gradeLabel } = params;
+  if (!sttText || sttText.trim().length === 0) return null;
+
+  const subjectCode = resolveSubjectCode(subject);
+  const curriculum = resolveCurriculumByGrade(gradeLabel);
+  if (!subjectCode || !curriculum) return null;
+
+  const textLower = normalizeText(sttText);
+  const matches: CurriculumReferenceMatch[] = [];
+
+  for (const unit of curriculum) {
+    if (unit.subjectCode !== subjectCode) continue;
+    matches.push(...collectMatchesForUnit(unit, textLower));
+  }
+
+  const topMatches = matches.sort((a, b) => b.score - a.score).slice(0, 5);
+
+  return {
+    gradeLabel: typeof gradeLabel === 'string' && gradeLabel.trim().length > 0 ? gradeLabel.trim() : null,
+    subject: typeof subject === 'string' && subject.trim().length > 0 ? subject.trim() : null,
+    matches: topMatches,
+  };
 }
 

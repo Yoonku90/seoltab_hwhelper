@@ -4,6 +4,7 @@ type MissedPart = {
   contextMeaning?: string;
   whatNotUnderstood?: string;
   whatToKnow?: string;
+  learningValue?: string;
 };
 
 type BuildSummaryPromptParams = {
@@ -18,6 +19,7 @@ type BuildSummaryPromptParams = {
   sttText?: string | null;
   missedParts: MissedPart[];
   images: string[];
+  sessionFocus?: 'lesson' | 'counseling';
 };
 
 export function buildSummaryPrompt(params: BuildSummaryPromptParams): string {
@@ -33,6 +35,7 @@ export function buildSummaryPrompt(params: BuildSummaryPromptParams): string {
     sttText,
     missedParts,
     images,
+    sessionFocus = 'lesson',
   } = params;
 
   return `당신은 서울대 자습관리 선생님 유은서 선생님입니다. ${displayName ? `${displayName}이(가) 방금 끝난 수업` : '방금 끝난 수업'}의 내용을 정확히 정리해서, ${displayName ? `${displayName}이(가)` : '학생이'} 이 요약본만 보면 수업을 다 한눈에 볼 수 있도록 완벽하게 정리해주세요.
@@ -52,6 +55,7 @@ ${gradeLabel ? `- 학년: ${gradeLabel}` : ''}
 **과목:** ${subject}
 ${subjectGuide}
 ${curriculumHint ? `${curriculumHint}\n` : ''}
+${sessionFocus === 'counseling' ? `**수업 성격:** 상담/학습 고민 중심 수업 (교재 진도/문제 풀이 중심 아님)\n` : ''}
 ${tutoringDatetime ? `**수업 날짜:** ${new Date(tutoringDatetime).toLocaleDateString('ko-KR')}\n` : ''}
 
 ${sttText ? `**수업 대화 내용 (STT):**\n${sttText}\n\n` : ''}
@@ -91,6 +95,11 @@ ${!sttText ? `⚠️ **중요:** STT가 없으므로 이미지만으로 수업 �
 
 이미지를 모두 확인하여 **수업과 관련 있는 이미지만** 선택하고, 어떤 수업을 했는지 파악한 후 실제 문제가 있는지 예제만 있는지 구분하여 요약을 생성하세요.\n\n` : `교재의 표, 그림, 핵심 개념, 문제를 확인하세요.\n\n`}` : ''}
 
+${sessionFocus === 'counseling' && images.length > 0 ? `⚠️ **상담 중심 수업 이미지 가이드:**
+- 학습 계획표/루틴/목표 설정표/체크리스트 등 **학습 상담과 직접 관련된 이미지**만 사용
+- 교재 본문/문제집 페이지는 사용하지 말 것
+\n\n` : ''}
+
 **콘텐츠 구조 - 핵심만 간결하게, 하지만 한 페이지로 복기 가능하도록:**
 
 1. **제목**: "[유은서 쌤이 방금 만든 따끈따끈한 비법 노트!]" 스타일
@@ -102,6 +111,12 @@ ${!sttText ? `⚠️ **중요:** STT가 없으므로 이미지만으로 수업 �
    - 수업 중 선생님이 말한 핵심 표현이나 예시만 포함
 
 3. **📖 오늘 수업 핵심 정리** (개념 + 흐름 통합, 한 섹션으로):
+   ${sessionFocus === 'counseling' ? `
+   - **상담/학습 고민 수업**이면 교재나 문제를 언급하지 말 것
+   - 학습 상태, 고민, 습관, 목표, 시간 관리, 집중 이슈를 중심으로 정리
+   - 학생에게 도움이 되는 **현실적인 다음 행동**을 2~3개 제시
+   - 개념/공식 나열 대신, 학습 전략/멘탈 관리/복습 방법을 요약
+   ` : ''}
    - **중요:** 제목 문구를 넣지 말고 **본문만** 작성
    - 수업에서 **정말로 다룬 핵심 개념들**만 선별하여 정리 (3-6개 정도)
    - 각 개념을 간결하게, 하지만 이해할 수 있게 설명 (너무 짧지 않게, 너무 길지 않게)
@@ -113,10 +128,12 @@ ${!sttText ? `⚠️ **중요:** STT가 없으므로 이미지만으로 수업 �
 
 4. **❓ 학생 질문 정리** (STT 기반 - 핵심만):
    ${missedParts.length > 0 ? `
-   - 학생이 **궁금해했던 질문**만 모아 정리
+   - 학생이 **실제로 질문한 것**만 선별 (의문형 질문만)
+   - 단순 대답/맞장구/예시 문장 낭독은 절대 포함하지 말 것
    - 꼽주거나 비난하는 말투는 **절대 사용하지 말 것**
    - 질문이 나온 **문맥/의미**를 짧게 설명
    - 학생이 **뭘 몰랐던 건지**, 그리고 **무엇을 알아야 하는지**를 1~2줄로 정리
+   - 마지막에 **학습적 의미**(왜 이 질문이 중요했는지) 한 줄 추가
    ` : `
    - STT 분석 결과 질문이 없으면 이 섹션은 생략
    `}
@@ -134,6 +151,12 @@ ${!sttText ? `⚠️ **중요:** STT가 없으므로 이미지만으로 수업 �
 - **선별과 집중**: 모든 것을 담으려 하지 말고, 정말 중요한 것만, 하지만 그 중요한 것들은 충분히 설명
 ${gradeLabel ? `- **학년 수준에 맞게** 설명의 난이도와 예시를 조절 (${gradeLabel} 기준)` : ''}
 - 과목별 가이드를 우선 반영하여 정리
+- **카드뉴스 확인 문제**:
+  - 오늘 수업 핵심 정리의 각 항목마다 1개씩 생성 (최대 6개)
+  - 빈칸 채우기 형식으로 **핵심 개념만** 묻기
+  - 보기 2개는 **서로 다른 개념**이어야 함 (동의어/유사어 금지)
+  - 예: "비교급 vs 최상급", "이차함수 vs 일차함수", "주어 vs 서술어"
+  - **상담/학습 고민 수업이면** cardQuizHints는 빈 배열로 반환
 - **시각 자료 JSON (공통 적용)**:
   - 수업에 **도형/그래프/도표/차트**가 등장했다면, 반드시 'visualAids' 배열에 JSON으로 포함
   - 목적은 **핵심 정리를 보조하는 시각 자료**이며, 문제 출제가 아님
@@ -165,9 +188,17 @@ ${gradeLabel ? `- **학년 수준에 맞게** 설명의 난이도와 예시를 �
       "contextMeaning": "질문이 나온 문맥/의미 요약",
       "whatNotUnderstood": "학생이 몰랐던 핵심 포인트",
       "whatToKnow": "이번에 꼭 알아야 할 핵심 개념",
-      "explanation": "핵심 설명 (1~2줄, 꼽주지 않기)"
+      "explanation": "핵심 설명 (1~2줄, 꼽주지 않기)",
+      "learningValue": "이 질문이 학습적으로 중요한 이유 (1줄)"
     }
   ]` : '[]'},
+  "cardQuizHints": [
+    {
+      "question": "빈칸 채우기: ___",
+      "options": ["정답 개념", "다른 개념"],
+      "answerIndex": 0
+    }
+  ],
   "encouragement": "마무리 격려 메시지 (예: '벌써 다 봤어? 역시 빠르네! 이 기세로 숙제 시간도 반으로 확 줄여버리자.')"
 }
 

@@ -8,12 +8,25 @@ import { Collections } from '@/lib/db';
 export async function GET(req: NextRequest) {
   try {
     const reviewPrograms = await Collections.reviewPrograms();
-    
-    // 시크릿 노트만 필터링 (metadata.isSecretNote === true)
+    const searchParams = req.nextUrl.searchParams;
+    const studentId = searchParams.get('studentId');
+    const roomId = searchParams.get('roomId');
+    const limit = Number(searchParams.get('limit') || 100);
+    const offset = Number(searchParams.get('offset') || 0);
+
+    const filter: Record<string, any> = { 'metadata.isSecretNote': true };
+    if (studentId) {
+      filter.studentId = studentId;
+    }
+    if (roomId) {
+      filter['metadata.roomId'] = roomId;
+    }
+
     const summaries = await reviewPrograms
-      .find({ 'metadata.isSecretNote': true } as any)
+      .find(filter as any)
       .sort({ createdAt: -1 } as any)
-      .limit(100) // 최대 100개
+      .skip(offset)
+      .limit(Number.isFinite(limit) ? limit : 100)
       .toArray();
 
     return NextResponse.json({

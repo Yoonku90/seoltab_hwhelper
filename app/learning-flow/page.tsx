@@ -21,9 +21,9 @@ function StatsSection({ studentId }: { studentId: string }) {
     const loadStats = async () => {
       try {
         // 완료한 요약본 수
-        const summariesRes = await fetch(`/api/review-programs?studentId=${studentId}`);
+        const summariesRes = await fetch(`/api/admin/summaries?studentId=${studentId}`);
         const summariesData = await summariesRes.json();
-        const completedSummaries = summariesData.reviewPrograms?.filter((rp: any) => 
+        const completedSummaries = summariesData.summaries?.filter((rp: any) => 
           rp.metadata?.isSecretNote
         ).length || 0;
 
@@ -118,11 +118,11 @@ export default function LearningFlowPage() {
     const loadRecentSummary = async () => {
       try {
         // 최근 시크릿 노트 찾기
-        const res = await fetch(`/api/review-programs?studentId=${studentId}`);
+        const res = await fetch(`/api/admin/summaries?studentId=${studentId}`);
         const data = await res.json();
-        if (data.reviewPrograms && data.reviewPrograms.length > 0) {
+        if (data.summaries && data.summaries.length > 0) {
           // 시크릿 노트만 필터링하고 최신순 정렬
-          const secretNotes = data.reviewPrograms
+          const secretNotes = data.summaries
             .filter((rp: any) => rp.metadata?.isSecretNote)
             .sort((a: any, b: any) => {
               const aDate = new Date(a.createdAt || 0).getTime();

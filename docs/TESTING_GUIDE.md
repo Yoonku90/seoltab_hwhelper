@@ -179,13 +179,13 @@ if (intervention) {
 
 #### 1. Tutor API 통합 확인
 
-`app/api/review-programs/tutor/next/route.ts`에서 이미 통합된 기능:
+`app/api/homework/help/route.ts`에서 이미 통합된 기능:
 - ✅ Fallback Logic (recommendedDifficulty, recommendedLearningPath)
 - ✅ Student Data Status (studentDataStatus, studentStrategy)
 - ✅ Context에 추가 정보 제공
 
 **확인 방법:**
-1. 복습 프로그램 시작
+1. 숙제 튜터 시작
 2. Tutor API 응답의 context 확인
 3. recommendedDifficulty, recommendedLearningPath 값 확인
 
@@ -199,7 +199,7 @@ if (intervention) {
 
 **통합 방법:**
 ```typescript
-// app/review-programs/[id]/page.tsx에서
+// app/admin/lecture-summary/page.tsx 또는 숙제 페이지에서
 // 학생이 문제를 맞췄을 때:
 await fetch('/api/events', {
   method: 'POST',

@@ -123,15 +123,9 @@
   - 학생이 "모르겠어요", "잘 모르겠는데요" 등 불확실한 답변
   - 선생님이 질문했는데 학생이 대답 못한 경우
 
-**복습 프로그램 퀴즈 시:**
-- 튜터 응답의 키워드로 판단 (`app/review-programs/[id]/page.tsx`):
-  ```typescript
-  const correctKeywords = ['딩동댕', '맞았어', '잘했어', '정답', '완전 맞았어', '완벽해', '대박 정확해'];
-  const incorrectKeywords = ['아깝다', '틀렸', '틀렸어', '다시 생각', '조금만 더'];
-  
-  const isCorrect = correctKeywords.some(keyword => message.includes(keyword.toLowerCase()));
-  const isIncorrect = incorrectKeywords.some(keyword => message.includes(keyword.toLowerCase()));
-  ```
+**카드뉴스 확인 문제(요약본 화면):**
+- `app/admin/lecture-summary/page.tsx`에서 카드 본문을 기반으로 빈칸 문제 생성
+- 정답 여부는 선택한 보기의 인덱스로 판단
 
 **문제 상태 관리:**
 - `POST /api/problems/:id/status` API 사용
@@ -142,7 +136,7 @@
 
 ### 현재 문제
 
-`review-programs/[id]/page.tsx`의 요약본 이미지가 잘림:
+`lecture-summary` 화면의 요약본 이미지가 잘림:
 - CSS의 `max-height` 제한으로 인한 크롭
 - `object-fit: cover` 사용으로 이미지 비율이 맞지 않을 때 잘림
 

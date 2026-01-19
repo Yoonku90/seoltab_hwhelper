@@ -37,6 +37,10 @@ interface AnalysisData {
     index: number;
     question: string;
     teacherResponse?: string;
+    contextMeaning?: string;
+    whatNotUnderstood?: string;
+    whatToKnow?: string;
+    learningValue?: string;
   }>;
 }
 
@@ -358,6 +362,26 @@ export default function LectureSearchPage() {
                               {q.teacherResponse && (
                                 <div className={styles.teacherResponse}>
                                   <strong>선생님 답변:</strong> {q.teacherResponse}
+                                </div>
+                              )}
+                              {q.contextMeaning && (
+                                <div className={styles.teacherResponse}>
+                                  <strong>문맥:</strong> {q.contextMeaning}
+                                </div>
+                              )}
+                              {q.whatNotUnderstood && (
+                                <div className={styles.teacherResponse}>
+                                  <strong>모르던 부분:</strong> {q.whatNotUnderstood}
+                                </div>
+                              )}
+                              {q.whatToKnow && (
+                                <div className={styles.teacherResponse}>
+                                  <strong>알아야 할 것:</strong> {q.whatToKnow}
+                                </div>
+                              )}
+                              {q.learningValue && (
+                                <div className={styles.teacherResponse}>
+                                  <strong>학습적 의미:</strong> {q.learningValue}
                                 </div>
                               )}
                             </div>

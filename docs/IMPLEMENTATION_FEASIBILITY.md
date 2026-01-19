@@ -18,7 +18,7 @@
 #### 2. AI 모델
 - ✅ **Google Generative AI (Gemini 2.5 Pro)**: 완전 구현됨
   - API 키 설정 가능
-  - `app/api/review-programs/tutor/next/route.ts`: 이미 사용 중
+- `app/api/homework/help/route.ts`: 이미 사용 중
   - JSON 모드 지원
   - Safety Settings 설정 가능
 
@@ -62,7 +62,7 @@
 ```
 필요한 것: 기존 코드 수정
 ✅ 구현 가능: 100%
-- app/api/review-programs/tutor/next/route.ts 수정
+- app/api/homework/help/route.ts 수정
 - fallback 로직 추가
 - 의존성: 모두 있음
 ```

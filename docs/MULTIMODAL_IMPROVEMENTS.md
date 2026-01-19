@@ -10,11 +10,11 @@
    - 문제 인식 (recognizedProblems)
    - 마커 인식 (priorityMarkers)
 
-2. **복습 프로그램 생성 단계** (`/api/review-programs/generate`):
+2. **요약본 생성 단계** (`/api/lecture/summary`):
    - 추출된 텍스트만 사용
    - 텍스트 기반으로 복습 프로그램 생성
 
-3. **튜터 대화 단계** (`/api/review-programs/tutor/next`):
+3. **튜터 대화 단계** (`/api/homework/help`):
    - 추출된 텍스트만 사용
    - 이미지는 참조하지 않음
 

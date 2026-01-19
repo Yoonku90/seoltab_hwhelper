@@ -98,7 +98,7 @@ export default function AdminSummariesPage() {
 
     try {
       setDeletingId(summaryId);
-      const res = await fetch(`/api/review-programs/${summaryId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/summaries/${summaryId}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         const message = data?.error || '요약본 삭제에 실패했습니다.';
@@ -122,7 +122,7 @@ export default function AdminSummariesPage() {
       setIsBulkDeleting(true);
       await Promise.all(
         Array.from(selectedIds).map((id) =>
-          fetch(`/api/review-programs/${id}`, { method: 'DELETE' })
+          fetch(`/api/admin/summaries/${id}`, { method: 'DELETE' })
         )
       );
       await fetchSummaries();
@@ -142,7 +142,7 @@ export default function AdminSummariesPage() {
     try {
       setIsBulkDeleting(true);
       await Promise.all(
-        summaries.map((s) => fetch(`/api/review-programs/${s._id}`, { method: 'DELETE' }))
+        summaries.map((s) => fetch(`/api/admin/summaries/${s._id}`, { method: 'DELETE' }))
       );
       await fetchSummaries();
     } catch (error) {

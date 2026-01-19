@@ -56,7 +56,7 @@
 
 **구현 방법**:
 ```typescript
-// app/api/review-programs/tutor/next/route.ts
+// app/api/homework/help/route.ts
 // intro stage 시작 시
 
 ${context.studentMemory?.strengths?.length > 0 && context.current.stage === 'intro' && context.current.idx === 0 ? `

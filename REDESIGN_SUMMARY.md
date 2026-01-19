@@ -45,10 +45,10 @@ ChatGPT 대화 내용을 바탕으로 학생 숙제 수행률을 높이는 AI �
 - 브레인스토밍, 구조 제안, 피드백 제공
 - **API 필요**: `POST /api/performance-tasks`
 
-### 6. 📋 복습 프로그램 (구현 필요)
-- 과외 후 1시간 복습 프로그램 자동 생성
-- 핵심 정리, 연습 문제, 퀴즈 제공
-- **API 필요**: `POST /api/review-programs`
+### 6. 📋 요약본 (시크릿 노트)
+- 과외 후 10분 컷 요약본 자동 생성
+- 핵심 정리, 확인 문제 제공
+- **API 필요**: `POST /api/lecture/summary`
 
 ## 데이터 구조 확장
 
@@ -58,7 +58,7 @@ ChatGPT 대화 내용을 바탕으로 학생 숙제 수행률을 높이는 AI �
 - `LearningEvent`: 학습 이벤트 로그 (멈춤 감지용)
 - `LearningConsultation`: 학습 고민 상담
 - `PerformanceTask`: 수행평가
-- `ReviewProgram`: 복습 프로그램
+- `SummaryNote`: 요약본
 
 ### 확장된 타입
 - `Assignment`: `subject`, `sessionType`, `isReviewProgram` 등 추가
@@ -75,7 +75,7 @@ ChatGPT 대화 내용을 바탕으로 학생 숙제 수행률을 높이는 AI �
   - 숙제 관리
   - 학습 고민 상담
   - 수행평가 도움
-  - 복습 프로그램
+  - 요약본
 
 ### 컴포넌트
 - `ImageUploader`: 이미지 업로드 컴포넌트 (카메라/갤러리 지원)
@@ -153,12 +153,12 @@ POST /api/performance-tasks
 - AI로 브레인스토밍, 구조 제안, 피드백 생성
 ```
 
-### 5. 복습 프로그램 API
+### 5. 요약본 API
 ```typescript
-// app/api/review-programs/route.ts
-POST /api/review-programs
-- 원본 과외 세션 정보 입력
-- AI로 핵심 정리, 연습 문제, 퀴즈 자동 생성
+// app/api/lecture/summary/route.ts
+POST /api/lecture/summary
+- Room ID 입력
+- STT + 교재 이미지 기반 요약본 생성
 ```
 
 ## 환경 변수

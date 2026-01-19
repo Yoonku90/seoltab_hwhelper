@@ -70,6 +70,11 @@
   gap: 20px;
 }
 
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+}
+
 .label {
   display: block;
   font-size: 14px;
@@ -110,6 +115,51 @@
   color: #888;
   margin-top: 8px;
   line-height: 1.5;
+}
+
+.curriculumSection {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(79, 195, 247, 0.08);
+  border: 1px solid rgba(79, 195, 247, 0.2);
+}
+
+.curriculumMeta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #cfd8dc;
+  margin-bottom: 10px;
+}
+
+.curriculumList {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.curriculumItem {
+  color: #e0f2f1;
+  font-size: 13px;
+}
+
+.curriculumItemTitle {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.curriculumItemMeta {
+  color: #b0bec5;
+  margin-top: 4px;
+}
+
+.curriculumEmpty {
+  font-size: 12px;
+  color: #90a4ae;
+  margin: 0;
 }
 
 .toggleRow {
@@ -403,9 +453,10 @@
 
 .cardCarousel {
   display: flex;
-  gap: 12px;
+  gap: 0;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
+  scroll-snap-stop: always;
   padding-bottom: 8px;
 }
 
@@ -493,8 +544,9 @@
 }
 
 .cardItem {
-  min-width: 280px;
-  max-width: 320px;
+  flex: 0 0 100%;
+  min-width: 100%;
+  max-width: 100%;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
@@ -556,8 +608,32 @@
   font-size: 13px;
   line-height: 1.6;
   color: #e0e0e0;
-  max-height: 220px;
+  max-height: 260px;
   overflow: hidden;
+}
+
+.cardBody img {
+  max-width: 100%;
+  height: auto;
+  max-height: 160px;
+  object-fit: contain;
+  display: block;
+  margin: 6px auto;
+}
+
+.cardBody table {
+  width: 100%;
+  font-size: 11px;
+  border-collapse: collapse;
+}
+
+.cardBody table,
+.cardBody thead,
+.cardBody tbody,
+.cardBody tr,
+.cardBody td,
+.cardBody th {
+  max-width: 100%;
 }
 
 .cardActions {

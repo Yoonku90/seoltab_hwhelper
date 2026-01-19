@@ -97,25 +97,68 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-function extractKeyword(sentence: string): string | null {
-  const boldMatch = sentence.match(/\*\*([^*]{2,})\*\*/);
-  if (boldMatch) return boldMatch[1].trim();
+const KEYWORD_STOPWORDS = new Set([
+  '오늘', '수업', '핵심', '정리', '내용', '부분', '문제', '설명', '예시', '규칙', '개념',
+  '학생', '선생님', '쌤', '요약', '포인트', '중요', '정답', '이번', '이것', '그것', '또는',
+  '그리고', '때문', '정리하면', '예를', '예시로', '다음', '처음', '마지막', '비교',
+]);
 
-  const quoteMatch = sentence.match(/"([^"]{2,})"/);
-  if (quoteMatch) return quoteMatch[1].trim();
+const KEYWORD_SUFFIX_BOOST = [
+  '법칙', '공식', '정리', '원리', '정의', '함수', '방정식', '그래프', '관계', '비율',
+  '비례', '부등식', '명사', '동사', '형용사', '절', '구', '시제', '비교급', '최상급',
+  '접속사', '관계대명사', '확률', '통계', '용액', '전압', '전류', '속도', '가속도',
+  '세포', '유전', '광합성', '지형', '기후', '헌법', '국회', '미분', '적분',
+];
 
-  const bracketMatch = sentence.match(/\[([^\]]{2,})\]/);
-  if (bracketMatch) return bracketMatch[1].trim();
+function extractKeywordCandidates(text: string): string[] {
+  return (text.match(/[A-Za-z가-힣]{2,}/g) || []).filter((token) => !KEYWORD_STOPWORDS.has(token));
+}
 
-  const stopwords = new Set([
-    '오늘', '수업', '핵심', '정리', '내용', '부분', '문제', '설명', '예시', '규칙', '개념',
-    '학생', '선생님', '쌤', '요약', '포인트', '중요', '정답',
-  ]);
-  const tokens = sentence.match(/[A-Za-z가-힣]{2,}/g) || [];
-  for (const token of tokens) {
-    if (!stopwords.has(token)) return token;
-  }
-  return null;
+function pickKeyTermFromText(text: string): { sentence: string; keyword: string; distractor: string } | null {
+  const cleaned = stripMarkdown(text);
+  const sentences = cleaned
+    .split(/\n|(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  if (sentences.length === 0) return null;
+
+  const tokenCounts = new Map<string, number>();
+  sentences.forEach((sentence) => {
+    extractKeywordCandidates(sentence).forEach((token) => {
+      tokenCounts.set(token, (tokenCounts.get(token) || 0) + 1);
+    });
+  });
+
+  let bestToken = '';
+  let bestSentence = sentences[0];
+  let bestScore = -1;
+
+  sentences.forEach((sentence, sentenceIndex) => {
+    const tokens = extractKeywordCandidates(sentence);
+    tokens.forEach((token) => {
+      const freq = tokenCounts.get(token) || 0;
+      const lengthScore = Math.min(token.length, 8);
+      const freqScore = freq > 1 ? (freq - 1) * 2 : 0;
+      const suffixScore = KEYWORD_SUFFIX_BOOST.some((suffix) => token.endsWith(suffix)) ? 3 : 0;
+      const earlyScore = sentenceIndex === 0 ? 2 : 0;
+      const score = lengthScore + freqScore + suffixScore + earlyScore;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestToken = token;
+        bestSentence = sentence;
+      }
+    });
+  });
+
+  if (!bestToken) return null;
+
+  const alternativeTokens = Array.from(tokenCounts.keys()).filter((token) => token !== bestToken);
+  const distractor =
+    alternativeTokens.sort((a, b) => (tokenCounts.get(b) || 0) - (tokenCounts.get(a) || 0))[0] || '다른 개념';
+
+  return { sentence: bestSentence, keyword: bestToken, distractor };
 }
 
 function formatCardBody(text: string): string {
@@ -126,6 +169,25 @@ function formatCardBody(text: string): string {
     .replace(/([.!?])\s+(?=[A-Za-z가-힣])/g, '$1\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+function limitCardText(text: string, maxChars: number): string {
+  if (!text) return text;
+  if (text.length <= maxChars) return text;
+
+  const sliced = text.slice(0, maxChars);
+  const lastBreak = Math.max(
+    sliced.lastIndexOf('\n'),
+    sliced.lastIndexOf('. '),
+    sliced.lastIndexOf('! '),
+    sliced.lastIndexOf('? ')
+  );
+
+  if (lastBreak > maxChars * 0.6) {
+    return sliced.slice(0, lastBreak).trim() + '…';
+  }
+
+  return sliced.trim() + '…';
 }
 
 function resolveVisualAids(value: unknown): any[] {
@@ -144,33 +206,100 @@ function resolveVisualAids(value: unknown): any[] {
   return [];
 }
 
-function buildQuickCheck(text: string, seed: number): {
+function normalizeSummaryObject(summary: any): any {
+  if (!summary || typeof summary !== 'object') return summary;
+  const fields = ['detailedContent', 'conceptSummary', 'teacherMessage', 'textbookHighlight', 'summary'];
+  for (const field of fields) {
+    const value = summary[field];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            const hasSummaryShape = ['title', 'teacherMessage', 'unitTitle', 'detailedContent', 'textbookHighlight'].some(
+              (key) => key in parsed
+            );
+            if (hasSummaryShape) {
+              return { ...summary, ...parsed };
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+  return summary;
+}
+
+function detectGrammarChoice(text: string): { keyword: string; distractor: string } | null {
+  const lower = text.toLowerCase();
+
+  if (/(?:-est|most)/.test(lower) || text.includes('최상급') || text.includes('가장')) {
+    return { keyword: '최상급', distractor: '비교급' };
+  }
+
+  if (/(?:-er|more)/.test(lower) || text.includes('비교급') || text.includes('than')) {
+    return { keyword: '비교급', distractor: '최상급' };
+  }
+
+  return null;
+}
+
+type CardQuizHint = {
+  question?: string;
+  options?: [string, string] | string[];
+  answerIndex?: number;
+};
+
+function buildQuickCheck(text: string, seed: number, hint?: CardQuizHint | null): {
   question: string;
   options: [string, string];
   answerIndex: number;
 } {
-  const cleaned = stripMarkdown(text);
-  const lines = cleaned.split('\n').map((line) => line.trim()).filter(Boolean);
-  let firstLine = lines[0] || cleaned;
-  firstLine = firstLine.replace(/^\d{1,2}\.\s*/, '').trim();
-  if (firstLine.length < 3 && lines.length > 1) {
-    firstLine = lines[1].replace(/^\d{1,2}\.\s*/, '').trim();
+  if (hint && typeof hint === 'object') {
+    const hintOptions = Array.isArray(hint.options) ? hint.options.slice(0, 2) : null;
+    if (hint.question && hintOptions && hintOptions.length === 2) {
+      const normalizedOptions: [string, string] = [String(hintOptions[0]), String(hintOptions[1])];
+      const answerIndex = hint.answerIndex === 1 ? 1 : 0;
+      return {
+        question: hint.question,
+        options: normalizedOptions,
+        answerIndex,
+      };
+    }
   }
-  if (!firstLine) {
+
+  const grammarChoice = detectGrammarChoice(text);
+  if (grammarChoice) {
+    const cleaned = stripMarkdown(text);
+    const sentence = cleaned.split('\n').map((line) => line.trim()).filter(Boolean)[0] || cleaned;
+    const blanked = sentence.replace(grammarChoice.keyword, '___');
+    const options: [string, string] =
+      seed % 2 === 0
+        ? [grammarChoice.keyword, grammarChoice.distractor]
+        : [grammarChoice.distractor, grammarChoice.keyword];
+    return {
+      question: `빈칸 채우기: ${blanked}`,
+      options,
+      answerIndex: options[0] === grammarChoice.keyword ? 0 : 1,
+    };
+  }
+
+  const picked = pickKeyTermFromText(text);
+  if (!picked) {
     return { question: '빈칸 채우기: ___', options: ['핵심', '다른'], answerIndex: 0 };
   }
 
-  // 중요 키워드를 찾아 빈칸으로 만들고 2지선다로 제시
-  const keyword = extractKeyword(firstLine) || (firstLine.match(/[A-Za-z가-힣]{2,}/g) || [])[0];
-  const safeKeyword = keyword || '핵심';
-  const blanked = firstLine.replace(safeKeyword, '___');
-  const tokens = (firstLine.match(/[A-Za-z가-힣]{2,}/g) || []).filter((t) => t !== safeKeyword);
-  const distractor = tokens.find((t) => t !== safeKeyword) || '다른 개념';
-  const options: [string, string] = seed % 2 === 0 ? [safeKeyword, distractor] : [distractor, safeKeyword];
+  const sentence = picked.sentence.replace(/^\d{1,2}\.\s*/, '').trim();
+  const blanked = sentence.replace(picked.keyword, '___');
+  const options: [string, string] =
+    seed % 2 === 0 ? [picked.keyword, picked.distractor] : [picked.distractor, picked.keyword];
   return {
     question: `빈칸 채우기: ${blanked}`,
     options,
-    answerIndex: options[0] === safeKeyword ? 0 : 1,
+    answerIndex: options[0] === picked.keyword ? 0 : 1,
   };
 }
 
@@ -180,6 +309,7 @@ export default function LectureSummaryPage() {
   const searchParams = useSearchParams();
   const [roomId, setRoomId] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [grade, setGrade] = useState('중2');
   const [error, setError] = useState<string | null>(null);
   const [summaryResult, setSummaryResult] = useState<any>(null);
   const [previousSummaryResult, setPreviousSummaryResult] = useState<any>(null);
@@ -209,7 +339,7 @@ export default function LectureSummaryPage() {
       const res = await fetch('/api/lecture/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: roomId.trim(), testMode, forcePromptRefresh }),
+        body: JSON.stringify({ roomId: roomId.trim(), grade, testMode, forcePromptRefresh }),
       });
 
       console.log('[lecture-summary] API 응답 상태:', res.status, res.statusText);
@@ -322,7 +452,7 @@ export default function LectureSummaryPage() {
       summaryResult.summary?.teacherMessage
         ? {
             title: '💬 쌤의 한마디',
-            body: formatCardBody(resolveString(summaryResult.summary.teacherMessage)),
+            body: limitCardText(formatCardBody(resolveString(summaryResult.summary.teacherMessage)), 320),
             checkable: false,
           }
         : null,
@@ -333,22 +463,23 @@ export default function LectureSummaryPage() {
                 normalizeConceptSummary(resolveString(summaryResult.summary?.conceptSummary || ''))
             )
           ).map((section, idx) => ({
-            title: `📖 오늘 수업 핵심 정리 ${idx + 1}`,
-            body: formatCardBody(section),
+            title: '📖 오늘 수업 핵심 정리',
+            body: limitCardText(formatCardBody(section), 360),
             checkable: true,
+            coreIndex: idx,
           }))
         : []),
       summaryResult.summary?.textbookHighlight
         ? {
             title: '📖 쌤 Tip',
-            body: formatCardBody(resolveString(summaryResult.summary.textbookHighlight)),
+            body: limitCardText(formatCardBody(resolveString(summaryResult.summary.textbookHighlight)), 320),
             checkable: false,
           }
         : null,
       summaryResult.summary?.missedParts && summaryResult.summary.missedParts.length > 0
         ? {
             title: '❓ 학생 질문 정리',
-            body: formatCardBody(summaryResult.summary.missedParts
+            body: limitCardText(formatCardBody(summaryResult.summary.missedParts
               .map((part: any) => {
                 const lines = [
                   part.question ? `• 질문: ${part.question}` : '',
@@ -356,23 +487,24 @@ export default function LectureSummaryPage() {
                   part.whatNotUnderstood ? `  - 모르던 부분: ${part.whatNotUnderstood}` : '',
                   part.whatToKnow ? `  - 알아야 할 것: ${part.whatToKnow}` : '',
                   part.explanation ? `  - 설명: ${part.explanation}` : '',
+                  part.learningValue ? `  - 학습적 의미: ${part.learningValue}` : '',
                 ].filter(Boolean);
                 return lines.join('\n');
               })
-              .join('\n\n')),
+              .join('\n\n')), 360),
             checkable: false,
           }
         : null,
       summaryResult.summary?.encouragement
         ? {
             title: '✨ 마무리 응원',
-            body: formatCardBody(summaryResult.summary.encouragement),
+            body: limitCardText(formatCardBody(summaryResult.summary.encouragement), 240),
             checkable: false,
           }
         : null,
     ];
 
-    return items.filter(Boolean) as Array<{ title: string; body: string; checkable: boolean }>;
+    return items.filter(Boolean) as Array<{ title: string; body: string; checkable: boolean; coreIndex?: number }>;
   }, [summaryResult]);
 
   useEffect(() => {
@@ -394,22 +526,25 @@ export default function LectureSummaryPage() {
         setError(null);
         setSummaryResult(null);
 
-        const res = await fetch(`/api/review-programs/${reviewProgramIdParam}`);
+        const res = await fetch(`/api/admin/summaries/${reviewProgramIdParam}`);
         const data = await res.json().catch(() => null);
-        if (!res.ok || !data?.reviewProgram) {
+        if (!res.ok || !data?.summary) {
           const message = data?.error || '요약본을 불러오지 못했습니다.';
           throw new Error(message);
         }
 
-        const rp = data.reviewProgram;
+        const rp = data.summary;
+        const normalizedSummary = normalizeSummaryObject(rp.reviewContent || {});
         setRoomId(rp.metadata?.roomId || '');
+        setGrade(rp.grade || '중2');
         setSummaryResult({
           reviewProgramId: rp._id?.toString?.() || reviewProgramIdParam,
           roomId: rp.metadata?.roomId || null,
           studentId: rp.studentId || null,
           studentName: rp.studentName || null,
-          summary: rp.reviewContent || {},
+          summary: normalizedSummary,
           imagesUsed: rp.metadata?.imageUrls || rp.reviewContent?.imagesInOrder || [],
+          curriculumReference: rp.metadata?.curriculumReference || null,
         });
       } catch (err: any) {
         console.error('[lecture-summary] 요약본 조회 실패:', err);
@@ -428,10 +563,8 @@ export default function LectureSummaryPage() {
     const total = cardItems.length;
     if (total === 0) return;
     const clampedIndex = Math.min(Math.max(index, 0), total - 1);
-    const cardEl = container.children.item(clampedIndex) as HTMLElement | null;
-    if (cardEl) {
-      container.scrollTo({ left: cardEl.offsetLeft, behavior: 'smooth' });
-    }
+    const cardWidth = container.clientWidth;
+    container.scrollTo({ left: cardWidth * clampedIndex, behavior: 'smooth' });
   };
 
   const handleCardScroll = () => {
@@ -443,21 +576,11 @@ export default function LectureSummaryPage() {
     }
 
     cardScrollRafRef.current = requestAnimationFrame(() => {
-      const cards = Array.from(container.children) as HTMLElement[];
-      const center = container.scrollLeft + container.clientWidth / 2;
-      let nearestIndex = 0;
-      let nearestDistance = Number.POSITIVE_INFINITY;
-
-      cards.forEach((card, idx) => {
-        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-        const distance = Math.abs(cardCenter - center);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearestIndex = idx;
-        }
-      });
-
-      setActiveCardIndex(nearestIndex);
+      const cardWidth = container.clientWidth;
+      if (!cardWidth) return;
+      const rawIndex = Math.round(container.scrollLeft / cardWidth);
+      const clampedIndex = Math.min(Math.max(rawIndex, 0), cardItems.length - 1);
+      setActiveCardIndex(clampedIndex);
     });
   };
 
@@ -515,6 +638,36 @@ export default function LectureSummaryPage() {
                   />
                   <p className={styles.hint}>
                     Room ID를 입력하면 해당 수업의 STT 텍스트와 교재 이미지를 자동으로 검색하여 요약본을 생성합니다.
+                  </p>
+                </div>
+                <div className={styles.inputGroup}>
+                  <label htmlFor="grade" className={styles.label}>
+                    학생 학년
+                  </label>
+                  <select
+                    id="grade"
+                    className={styles.input}
+                    value={grade}
+                    onChange={(e) => setGrade(e.target.value)}
+                    disabled={isGenerating}
+                  >
+                    <option value="초1">초1</option>
+                    <option value="초2">초2</option>
+                    <option value="초3">초3</option>
+                    <option value="초4">초4</option>
+                    <option value="초5">초5</option>
+                    <option value="초6">초6</option>
+                    <option value="중1">중1</option>
+                    <option value="중2">중2</option>
+                    <option value="중3">중3</option>
+                    <option value="고1">고1</option>
+                    <option value="고2">고2</option>
+                    <option value="고3">고3</option>
+                    <option value="N수생">N수생</option>
+                    <option value="일반인">일반인</option>
+                  </select>
+                  <p className={styles.hint}>
+                    학년을 선택하면 요약본 난이도와 예시가 더 맞춤화됩니다.
                   </p>
                 </div>
                 <div className={styles.toggleRow}>
@@ -612,6 +765,40 @@ export default function LectureSummaryPage() {
                 </div>
               )}
 
+              {summaryResult.curriculumReference && (
+                <div className={styles.curriculumSection}>
+                  <h5>📚 커리큘럼 참고</h5>
+                  <div className={styles.curriculumMeta}>
+                    <span>학년: {summaryResult.curriculumReference.gradeLabel || '미지정'}</span>
+                    <span>과목: {summaryResult.curriculumReference.subject || '미지정'}</span>
+                  </div>
+                  {Array.isArray(summaryResult.curriculumReference.matches) &&
+                  summaryResult.curriculumReference.matches.length > 0 ? (
+                    <ol className={styles.curriculumList}>
+                      {summaryResult.curriculumReference.matches.map((match: any, idx: number) => (
+                        <li key={`${match.course}-${match.subunitTitle}-${idx}`} className={styles.curriculumItem}>
+                          <div className={styles.curriculumItemTitle}>
+                            {(match.course || match.unitTitle || '단원') + ' > ' + (match.subunitTitle || '소단원')}
+                          </div>
+                          {match.concepts && match.concepts.length > 0 && (
+                            <div className={styles.curriculumItemMeta}>
+                              핵심 개념: {match.concepts.slice(0, 6).join(', ')}
+                            </div>
+                          )}
+                          {match.matchedKeywords && match.matchedKeywords.length > 0 && (
+                            <div className={styles.curriculumItemMeta}>
+                              매칭 키워드: {match.matchedKeywords.slice(0, 6).join(', ')}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className={styles.curriculumEmpty}>일치하는 키워드가 없습니다.</p>
+                  )}
+                </div>
+              )}
+
               <div className={styles.summaryHeader}>
                 <h4>{summaryResult.summary?.title || '[유은서 쌤이 방금 만든 따끈따끈한 비법 노트!]'}</h4>
                 {summaryResult.reviewProgramId && (
@@ -687,7 +874,11 @@ export default function LectureSummaryPage() {
                     )}
                     <div className={styles.cardCarousel} ref={cardScrollRef} onScroll={handleCardScroll}>
                       {cardItems.map((card, idx: number) => {
-                        const quickCheck = card.checkable ? buildQuickCheck(card.body, idx) : null;
+                        const hint =
+                          card.checkable && typeof card.coreIndex === 'number'
+                            ? summaryResult?.summary?.cardQuizHints?.[card.coreIndex]
+                            : null;
+                        const quickCheck = card.checkable ? buildQuickCheck(card.body, idx, hint) : null;
                         const isFlipped = !!cardFlipped[idx];
                         return (
                           <div
@@ -985,6 +1176,11 @@ export default function LectureSummaryPage() {
                           <strong>설명:</strong> {part.explanation}
                         </p>
                       )}
+                      {part.learningValue && (
+                        <p className={styles.missedExplanation}>
+                          <strong>학습적 의미:</strong> {part.learningValue}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1040,7 +1236,7 @@ export default function LectureSummaryPage() {
                       const studentId = searchParams.get('studentId') || localStorage.getItem('studentId') || 'unknown';
                       
                       // Review Program에 studentId 업데이트
-                      const res = await fetch(`/api/review-programs/${summaryResult.reviewProgramId}`, {
+                      const res = await fetch(`/api/admin/summaries/${summaryResult.reviewProgramId}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ studentId }),

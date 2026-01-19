@@ -6,7 +6,7 @@ import { Collections } from '@/lib/db';
 import { loadCorrectAndParseStt, type Conversation } from '@/lib/stt-utils';
 import { getSubjectGuide } from '@/lib/prompts/subjectPrompts';
 import { buildSummaryPrompt } from '@/lib/prompts/summaryPrompt';
-import { buildCurriculumHint } from '@/lib/curriculum/matchCurriculum';
+import { buildCurriculumHint, buildCurriculumReference } from '@/lib/curriculum/matchCurriculum';
 
 // Lecture Analysis Pipeline API Base URL
 const LECTURE_API_BASE_URL = 
@@ -20,6 +20,44 @@ const GEMINI_SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
+
+function countKeywordHits(text: string, keywords: string[]): number {
+  return keywords.reduce((score, keyword) => (text.includes(keyword) ? score + 1 : score), 0);
+}
+
+function detectSessionFocus(sttText?: string | null): 'lesson' | 'counseling' {
+  if (!sttText) return 'lesson';
+  const text = sttText.toLowerCase();
+
+  const counselingKeywords = [
+    '상담', '고민', '불안', '멘탈', '마음', '스트레스', '긴장', '자신감', '동기',
+    '집중', '집중력', '습관', '계획', '시간관리', '공부법', '공부 습관', '루틴',
+    '목표', '진로', '슬럼프', '피드백', '칭찬', '격려', '상태', '페이스', '컨디션',
+  ];
+  const lessonKeywords = [
+    '개념', '공식', '정리', '문제', '풀이', '정답', '예제', '단원', '문법',
+    '함수', '방정식', '비교급', '최상급', '주어', '동사', '그래프', '도형',
+  ];
+
+  const counselingScore = countKeywordHits(text, counselingKeywords);
+  const lessonScore = countKeywordHits(text, lessonKeywords);
+
+  if (counselingScore >= 3 && (lessonScore === 0 || counselingScore >= lessonScore * 2)) {
+    return 'counseling';
+  }
+
+  return 'lesson';
+}
+
+function hasLessonSignals(sttText?: string | null): boolean {
+  if (!sttText) return false;
+  const text = sttText.toLowerCase();
+  const lessonKeywords = [
+    '개념', '공식', '정리', '문제', '풀이', '정답', '예제', '단원', '문법',
+    '함수', '방정식', '비교급', '최상급', '주어', '동사', '그래프', '도형',
+  ];
+  return countKeywordHits(text, lessonKeywords) >= 2;
+}
 
 // MIME 타입 감지 함수 (최적화: 중복 로직 제거)
 function detectImageMimeType(imageUrl: string, contentType: string | null, imageBuffer: Buffer): string {
@@ -459,14 +497,27 @@ export async function POST(req: NextRequest) {
     const displayName = studentNickname || studentName || null;
     const gradeLabel = typeof grade === 'string' && grade.trim().length > 0 ? grade.trim() : null;
     const subjectGuide = getSubjectGuide(subject);
+    const sessionFocus = detectSessionFocus(sttText);
+    const allowCurriculumHint = sessionFocus !== 'counseling' || hasLessonSignals(sttText);
     const curriculumHint = buildCurriculumHint({
       sttText,
       subject,
       gradeLabel,
     });
+    const curriculumReference = buildCurriculumReference({
+      sttText,
+      subject,
+      gradeLabel,
+    });
+    const curriculumHintToUse = allowCurriculumHint ? curriculumHint : null;
+    const curriculumReferenceToUse = allowCurriculumHint ? curriculumReference : null;
+    const imagesForPrompt = images;
 
-    if (isDevelopment && curriculumHint) {
+    if (isDevelopment && curriculumHintToUse) {
       console.log('[lecture/summary] 📚 커리큘럼 매칭 힌트 적용');
+    }
+    if (isDevelopment && sessionFocus === 'counseling') {
+      console.log('[lecture/summary] 🧠 상담 중심 수업 감지: 이미지/커리큘럼은 STT 관련성 기준으로만 사용');
     }
 
     const shouldUseCachedPrompt = isTestMode && usedCache && !forcePromptRefresh && !!cachedPrompt;
@@ -479,43 +530,132 @@ export async function POST(req: NextRequest) {
       gradeLabel,
       subject,
       subjectGuide,
-      curriculumHint,
+      curriculumHint: curriculumHintToUse,
       tutoringDatetime,
       sttText,
       missedParts,
-      images,
+      images: imagesForPrompt,
+      sessionFocus,
     });
 
     // 🎯 STT 기반 이미지 관련성 분석 및 선택 (최적화: 이미지 캐싱)
     const imageCache = new Map<string, { buffer: Buffer; mimeType: string }>(); // 이미지 다운로드 캐시
 
-    if (imagesToUse.length === 0) {
-    if (images.length > 0 && sttText) {
-      console.log(`[lecture/summary] 🔍 STT 기반 이미지 관련성 분석 시작 (${images.length}개 이미지)...`);
-      
-      // STT 요약 및 개념 키워드 캐싱 (최적화: 루프 밖에서 한 번만 계산)
-      const sttSummary = sttText.length > 1000 
-        ? sttText.substring(0, 1000) + '...'
-        : sttText;
-      
-      const conceptPatterns = [
-        /(관계대명사|관계부사|감각동사|수여동사|to부정사|동명사|분사|현재분사|과거분사)/gi,
-        /(\w+법칙|\w+정리|\w+공식|\w+원리)/gi,
-        /(\w+함수|\w+방정식|\w+부등식)/gi,
-        /(\w+장|\w+절|\w+단원)/gi,
-      ];
-      const mentionedConcepts: string[] = [];
-      for (const pattern of conceptPatterns) {
-        const matches = sttSummary.match(pattern);
-        if (matches) {
-          mentionedConcepts.push(...matches);
+    if (sessionFocus === 'counseling') {
+      if (sttImageRefs.length > 0 && images.length > 0) {
+        const counselingImages = sttImageRefs
+          .map((ref: string) => images.find((url: string) => url.includes(ref) || ref.includes(url.split('/').pop() || '')))
+          .filter((url): url is string => !!url);
+        imagesToUse = counselingImages;
+      } else if (images.length > 0 && sttText) {
+        const counselingPrompt = `이 이미지는 수업 중에 제공된 자료입니다.
+
+**수업 대화 내용 (STT):**
+${sttText.substring(0, 800)}
+
+이 이미지가 학습 상담(학습 계획/루틴/목표/상태/멘탈/공부법)과 직접 관련이 있는지 판단해주세요.
+
+**판단 기준:**
+1. 학습 계획표, 시간표, 체크리스트, 목표 설정표, 루틴 메모인지
+2. 학습 상태/습관/멘탈 관련 도표나 자료인지
+3. 교재/문제집 단원 내용일 경우 -> 관련 없음
+
+**응답 형식 (JSON만):**
+{
+  "relevant": true/false,
+  "score": 0-100,
+  "reason": "관련성 이유 (간단히)"
+}`;
+
+        try {
+          const analysisModel = genAI.getGenerativeModel({
+            model: 'gemini-2.5-pro',
+            safetySettings: GEMINI_SAFETY_SETTINGS,
+          });
+
+          const imageDownloadPromises = images.map(async (imageUrl) => {
+            let imageData = imageCache.get(imageUrl);
+            if (!imageData) {
+              const downloaded = await downloadAndConvertImage(imageUrl);
+              if (!downloaded) return null;
+              imageData = downloaded;
+              imageCache.set(imageUrl, imageData);
+            }
+            return { url: imageUrl, imageData };
+          });
+
+          const downloadedImages = (await Promise.all(imageDownloadPromises))
+            .filter((item): item is { url: string; imageData: { buffer: Buffer; mimeType: string } } => item !== null);
+
+          const analysisPromises = downloadedImages.map(async ({ url, imageData }) => {
+            try {
+              const analysisResult = await analysisModel.generateContent({
+                contents: [{
+                  role: 'user',
+                  parts: [
+                    {
+                      inlineData: {
+                        data: imageData.buffer.toString('base64'),
+                        mimeType: imageData.mimeType,
+                      },
+                    },
+                    { text: counselingPrompt },
+                  ],
+                }],
+              });
+
+              const analysisText = analysisResult.response.text();
+              const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const analysis = JSON.parse(jsonMatch[0]);
+                if (analysis.relevant && analysis.score >= 50) {
+                  return { url, score: analysis.score || 50 };
+                }
+              }
+              return null;
+            } catch {
+              return null;
+            }
+          });
+
+          const imageScores = (await Promise.all(analysisPromises))
+            .filter((item): item is { url: string; score: number } => item !== null)
+            .sort((a, b) => b.score - a.score);
+
+          imagesToUse = imageScores.map((img) => img.url);
+        } catch {
+          imagesToUse = [];
         }
+      } else {
+        imagesToUse = [];
       }
-      const conceptKeywords = mentionedConcepts.length > 0 
-        ? `\n**STT에서 언급된 개념 키워드:** ${[...new Set(mentionedConcepts)].slice(0, 10).join(', ')}`
-        : '';
-      
-      const relevancePrompt = `이 이미지는 수업 중에 사용된 교재/문제집 페이지입니다.
+    } else if (imagesToUse.length === 0) {
+      if (images.length > 0 && sttText) {
+        console.log(`[lecture/summary] 🔍 STT 기반 이미지 관련성 분석 시작 (${images.length}개 이미지)...`);
+        
+        // STT 요약 및 개념 키워드 캐싱 (최적화: 루프 밖에서 한 번만 계산)
+        const sttSummary = sttText.length > 1000 
+          ? sttText.substring(0, 1000) + '...'
+          : sttText;
+        
+        const conceptPatterns = [
+          /(관계대명사|관계부사|감각동사|수여동사|to부정사|동명사|분사|현재분사|과거분사)/gi,
+          /(\w+법칙|\w+정리|\w+공식|\w+원리)/gi,
+          /(\w+함수|\w+방정식|\w+부등식)/gi,
+          /(\w+장|\w+절|\w+단원)/gi,
+        ];
+        const mentionedConcepts: string[] = [];
+        for (const pattern of conceptPatterns) {
+          const matches = sttSummary.match(pattern);
+          if (matches) {
+            mentionedConcepts.push(...matches);
+          }
+        }
+        const conceptKeywords = mentionedConcepts.length > 0 
+          ? `\n**STT에서 언급된 개념 키워드:** ${[...new Set(mentionedConcepts)].slice(0, 10).join(', ')}`
+          : '';
+        
+        const relevancePrompt = `이 이미지는 수업 중에 사용된 교재/문제집 페이지입니다.
 
 **수업 대화 내용 (STT):**
 ${sttSummary}${conceptKeywords}
@@ -538,97 +678,97 @@ ${sttSummary}${conceptKeywords}
 - relevant: true면 관련 있음, false면 관련 없음
 - score: 관련성 점수 (0-100, 높을수록 관련성 높음)
 - reason: 왜 관련이 있는지/없는지 간단히 설명 (한 문장)`;
-      
-      try {
-        const imagesToAnalyze = images; // STT 관련 이미지는 모두 분석
-        const analysisModel = genAI.getGenerativeModel({
-          model: 'gemini-2.5-pro',
-          safetySettings: GEMINI_SAFETY_SETTINGS,
-        });
         
-        // 🚀 최적화 2: 이미지 다운로드를 병렬 처리
-        const imageDownloadPromises = imagesToAnalyze.map(async (imageUrl) => {
-          let imageData = imageCache.get(imageUrl);
-          if (!imageData) {
-            const downloaded = await downloadAndConvertImage(imageUrl);
-            if (!downloaded) return null;
-            imageData = downloaded;
-            imageCache.set(imageUrl, imageData);
-          }
-          return { url: imageUrl, imageData };
-        });
-        
-        const downloadedImages = (await Promise.all(imageDownloadPromises))
-          .filter((item): item is { url: string; imageData: { buffer: Buffer; mimeType: string } } => item !== null);
-        
-        // 🚀 최적화 3: 이미지 관련성 분석을 병렬 처리
-        const analysisPromises = downloadedImages.map(async ({ url, imageData }) => {
-          try {
-            const analysisResult = await analysisModel.generateContent({
-              contents: [{
-                role: 'user',
-                parts: [
-                  {
-                    inlineData: {
-                      data: imageData.buffer.toString('base64'),
-                      mimeType: imageData.mimeType,
+        try {
+          const imagesToAnalyze = images; // STT 관련 이미지는 모두 분석
+          const analysisModel = genAI.getGenerativeModel({
+            model: 'gemini-2.5-pro',
+            safetySettings: GEMINI_SAFETY_SETTINGS,
+          });
+          
+          // 🚀 최적화 2: 이미지 다운로드를 병렬 처리
+          const imageDownloadPromises = imagesToAnalyze.map(async (imageUrl) => {
+            let imageData = imageCache.get(imageUrl);
+            if (!imageData) {
+              const downloaded = await downloadAndConvertImage(imageUrl);
+              if (!downloaded) return null;
+              imageData = downloaded;
+              imageCache.set(imageUrl, imageData);
+            }
+            return { url: imageUrl, imageData };
+          });
+          
+          const downloadedImages = (await Promise.all(imageDownloadPromises))
+            .filter((item): item is { url: string; imageData: { buffer: Buffer; mimeType: string } } => item !== null);
+          
+          // 🚀 최적화 3: 이미지 관련성 분석을 병렬 처리
+          const analysisPromises = downloadedImages.map(async ({ url, imageData }) => {
+            try {
+              const analysisResult = await analysisModel.generateContent({
+                contents: [{
+                  role: 'user',
+                  parts: [
+                    {
+                      inlineData: {
+                        data: imageData.buffer.toString('base64'),
+                        mimeType: imageData.mimeType,
+                      },
                     },
-                  },
-                  { text: relevancePrompt },
-                ],
-              }],
-            });
+                    { text: relevancePrompt },
+                  ],
+                }],
+              });
 
-            const analysisText = analysisResult.response.text();
-            const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-            
-            if (jsonMatch) {
-              const analysis = JSON.parse(jsonMatch[0]);
-              if (analysis.relevant && analysis.score > 30) {
-                if (isDevelopment) {
-                  console.log(`[lecture/summary]   ✅ 이미지 관련성: ${analysis.score}점 - ${analysis.reason?.substring(0, 50)}...`);
+              const analysisText = analysisResult.response.text();
+              const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+              
+              if (jsonMatch) {
+                const analysis = JSON.parse(jsonMatch[0]);
+                if (analysis.relevant && analysis.score > 30) {
+                  if (isDevelopment) {
+                    console.log(`[lecture/summary]   ✅ 이미지 관련성: ${analysis.score}점 - ${analysis.reason?.substring(0, 50)}...`);
+                  }
+                  return {
+                    url,
+                    score: analysis.score || 50,
+                    reason: analysis.reason || '관련성 분석 완료',
+                  };
                 }
-                return {
-                  url,
-                  score: analysis.score || 50,
-                  reason: analysis.reason || '관련성 분석 완료',
-                };
               }
+              return null;
+            } catch (imgAnalysisErr) {
+              if (isDevelopment) {
+                console.warn(`[lecture/summary] 이미지 분석 실패 (${url.substring(0, 50)}...):`, imgAnalysisErr);
+              }
+              return null;
             }
-            return null;
-          } catch (imgAnalysisErr) {
-            if (isDevelopment) {
-              console.warn(`[lecture/summary] 이미지 분석 실패 (${url.substring(0, 50)}...):`, imgAnalysisErr);
-            }
-            return null;
+          });
+          
+          const imageScores = (await Promise.all(analysisPromises))
+            .filter((item): item is { url: string; score: number; reason: string } => item !== null);
+          
+          imageScores.sort((a, b) => b.score - a.score);
+          // STT 관련 이미지는 점수 40 이상인 모든 이미지 사용 (개수 제한 없음)
+          imagesToUse = imageScores
+            .filter(img => img.score >= 40)
+            .map(img => img.url);
+          
+          if (imagesToUse.length === 0) {
+            imagesToUse = [images[0]];
+            console.log(`[lecture/summary] ⚠️ 관련 이미지 없음, 첫 번째 이미지 사용 (fallback)`);
+          } else {
+            console.log(`[lecture/summary] ✅ STT 관련 이미지 ${imagesToUse.length}개 선택 완료`);
           }
-        });
-        
-        const imageScores = (await Promise.all(analysisPromises))
-          .filter((item): item is { url: string; score: number; reason: string } => item !== null);
-        
-        imageScores.sort((a, b) => b.score - a.score);
-        // STT 관련 이미지는 점수 40 이상인 모든 이미지 사용 (개수 제한 없음)
-        imagesToUse = imageScores
-          .filter(img => img.score >= 40)
-          .map(img => img.url);
-        
-        if (imagesToUse.length === 0) {
+        } catch (analysisErr) {
+          console.error('[lecture/summary] 이미지 관련성 분석 중 오류:', analysisErr);
           imagesToUse = [images[0]];
-          console.log(`[lecture/summary] ⚠️ 관련 이미지 없음, 첫 번째 이미지 사용 (fallback)`);
-        } else {
-          console.log(`[lecture/summary] ✅ STT 관련 이미지 ${imagesToUse.length}개 선택 완료`);
+          console.log(`[lecture/summary] ⚠️ 분석 실패, 첫 번째 이미지 사용 (fallback)`);
         }
-      } catch (analysisErr) {
-        console.error('[lecture/summary] 이미지 관련성 분석 중 오류:', analysisErr);
-        imagesToUse = [images[0]];
-        console.log(`[lecture/summary] ⚠️ 분석 실패, 첫 번째 이미지 사용 (fallback)`);
+      } else if (images.length > 0) {
+        // STT가 없을 때도 모든 이미지 사용 (개수 제한 없음)
+        imagesToUse = images;
+        console.log(`[lecture/summary] 🖼️ STT 없음, 이미지 ${imagesToUse.length}개 사용 (전체 활용)`);
       }
-    } else if (images.length > 0) {
-      // STT가 없을 때도 모든 이미지 사용 (개수 제한 없음)
-      imagesToUse = images;
-      console.log(`[lecture/summary] 🖼️ STT 없음, 이미지 ${imagesToUse.length}개 사용 (전체 활용)`);
-    }
     } else if (isDevelopment) {
       console.log(`[lecture/summary] 🧪 테스트 모드: 캐시된 이미지 ${imagesToUse.length}개 사용`);
     }
@@ -880,10 +1020,16 @@ ${sttSummary}${conceptKeywords}
         if ((value.startsWith('{') && value.endsWith('}')) || (value.startsWith('[') && value.endsWith(']'))) {
           try {
             const parsed = JSON.parse(value);
-            // 파싱된 값이 객체나 배열이면 원본 문자열 유지 (의도하지 않은 파싱 방지)
-            // 단순 문자열이면 파싱된 값 사용
+            // 파싱된 값이 문자열이면 교체, 객체면 요약 구조로 추정 시 merge
             if (typeof parsed === 'string') {
               summaryData[field] = parsed;
+            } else if (parsed && typeof parsed === 'object') {
+              const hasSummaryShape = ['title', 'teacherMessage', 'unitTitle', 'detailedContent', 'textbookHighlight'].some(
+                (key) => key in parsed
+              );
+              if (hasSummaryShape) {
+                summaryData = { ...summaryData, ...parsed };
+              }
             }
           } catch {
             // JSON 파싱 실패 시 원본 문자열 유지
@@ -925,8 +1071,10 @@ ${sttSummary}${conceptKeywords}
       conceptSummary: summaryData.conceptSummary || '',
       detailedContent: summaryData.detailedContent || '', // 수업 상세 정리
       textbookHighlight: summaryData.textbookHighlight || '',
+      visualAids: summaryData.visualAids || [],
       missedParts: summaryData.missedParts || [],
       todayMission: summaryData.todayMission || '',
+      cardQuizHints: summaryData.cardQuizHints || [],
       encouragement: summaryData.encouragement || '',
       keyPoints: summaryData.keyPoints || [],
       rememberThis: summaryData.rememberThis || '',
@@ -962,6 +1110,7 @@ ${sttSummary}${conceptKeywords}
         hasStt: !!sttText,
         missedPartsCount: missedParts.length,
         isSecretNote: true,
+        curriculumReference: curriculumReferenceToUse || null,
       },
     };
 
@@ -1054,8 +1203,16 @@ ${sttSummary}${conceptKeywords}
         textbookHighlight: '',
         missedParts: [],
         todayMission: '',
+        cardQuizHints: [],
         encouragement: '',
       };
+    }
+
+    if (!Array.isArray(summaryData.cardQuizHints)) {
+      summaryData.cardQuizHints = [];
+    }
+    if (sessionFocus === 'counseling') {
+      summaryData.cardQuizHints = [];
     }
 
     return NextResponse.json({
@@ -1067,6 +1224,7 @@ ${sttSummary}${conceptKeywords}
       studentId: studentId || null,
       studentName: studentName || null,
       studentNickname: studentNickname || null,
+      curriculumReference: curriculumReferenceToUse || null,
     });
   } catch (error: any) {
     console.error('[lecture/summary] ❌ Error:', error);
