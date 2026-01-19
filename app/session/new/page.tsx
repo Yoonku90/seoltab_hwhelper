@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ImageUploader from '@/app/components/ImageUploader';
 import styles from './page.module.css';
@@ -16,7 +16,7 @@ type Analysis = {
   }>;
 };
 
-export default function NewSessionPage() {
+function NewSessionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -149,6 +149,14 @@ export default function NewSessionPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NewSessionPage />
+    </Suspense>
   );
 }
 

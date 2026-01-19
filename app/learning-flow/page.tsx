@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import MarkdownMath from '@/app/components/MarkdownMath';
@@ -86,7 +86,7 @@ type ReviewProgram = {
   };
 };
 
-export default function LearningFlowPage() {
+function LearningFlowPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const studentId = searchParams.get('studentId') || 'unknown';
@@ -299,6 +299,14 @@ export default function LearningFlowPage() {
       {/* 학습 통계 */}
       <StatsSection studentId={studentId} />
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LearningFlowPage />
+    </Suspense>
   );
 }
 

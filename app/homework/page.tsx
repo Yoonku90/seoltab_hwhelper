@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { Suspense, useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import styles from './page.module.css';
@@ -14,7 +14,7 @@ type ChatMsg = {
 
 type TutorType = 'rangsam' | 'joonssam';
 
-export default function HomeworkPage() {
+function HomeworkPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const urlStudentId = searchParams.get('studentId');
@@ -354,6 +354,14 @@ export default function HomeworkPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomeworkPage />
+    </Suspense>
   );
 }
 
