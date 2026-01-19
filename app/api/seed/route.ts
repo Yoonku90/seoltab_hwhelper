@@ -35,6 +35,7 @@ export async function GET() {
         solved: 0,
         stuck: 0,
         question: 0,
+        not_started: 10,
       },
       top5Confirmed: false,
     };
@@ -79,6 +80,7 @@ export async function GET() {
             solved: 7,
             stuck: 2,
             question: 1,
+            not_started: 0,
           },
         },
       }

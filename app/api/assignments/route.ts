@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
         solved: 0,
         stuck: 0,
         question: 0,
+        not_started: 0,
       },
       top5Confirmed: false,
     };

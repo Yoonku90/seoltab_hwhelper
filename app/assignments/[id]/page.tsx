@@ -28,6 +28,7 @@ interface Assignment {
     solved: number;
     stuck: number;
     question: number;
+    not_started?: number;
   };
   top5Confirmed: boolean;
 }

@@ -14,6 +14,7 @@ interface DashboardItem {
     solved: number;
     stuck: number;
     question: number;
+    not_started?: number;
   };
   lastActivityAt?: string;
   top5Confirmed: boolean;
