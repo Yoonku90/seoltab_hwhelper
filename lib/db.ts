@@ -1,4 +1,4 @@
-import { MongoClient, Db, Collection } from 'mongodb';
+import { MongoClient, Db, Collection, Document } from 'mongodb';
 import {
   Assignment,
   Page,
@@ -48,7 +48,7 @@ export async function getDb(): Promise<Db> {
 }
 
 // 컬렉션 가져오기 헬퍼
-export async function getCollection<T>(name: string): Promise<Collection<T>> {
+export async function getCollection<T extends Document>(name: string): Promise<Collection<T>> {
   const db = await getDb();
   return db.collection<T>(name);
 }
