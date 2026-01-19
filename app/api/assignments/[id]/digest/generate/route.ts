@@ -20,7 +20,7 @@ export async function POST(
     const assignments = await Collections.assignments();
     const assignment = await assignments.findOne({
       _id: new ObjectId(assignmentId),
-    });
+    } as any);
 
     if (!assignment) {
       return NextResponse.json(
