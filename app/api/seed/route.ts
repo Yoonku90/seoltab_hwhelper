@@ -44,15 +44,15 @@ export async function GET() {
     const assignmentId = assignmentResult.insertedId.toString();
 
     // 테스트 문제 10개 생성
-    const problemList = [];
+    const problemList: Array<any> = [];
     for (let i = 1; i <= 10; i++) {
-      const problem = {
+      const problem: any = {
         assignmentId,
         problemNumber: i,
         problemText: `${i}. 다음 중 알맞은 것을 선택하세요.\n\nYour sneakers look (new, newly).`,
         imageUrl: undefined,
         latestAttempt: {
-          status: 'solved' as const,
+          status: 'solved' as any,
           updatedAt: now,
           timeSpent: Math.floor(Math.random() * 300) + 60, // 60-360초
         },
