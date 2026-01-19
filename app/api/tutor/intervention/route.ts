@@ -232,8 +232,9 @@ ${problem.problemText || '문제 이미지를 확인해주세요.'}
 
     // 세션 업데이트 또는 생성
     const now = new Date();
+    let finalSession: any;
     if (!session) {
-      session = {
+      finalSession = {
         problemId,
         assignmentId: problem.assignmentId,
         studentId,
@@ -254,15 +255,16 @@ ${problem.problemText || '문제 이미지를 확인해주세요.'}
         createdAt: now,
         updatedAt: now,
       } as any;
-      await aiTutorSessions.insertOne(session as any);
+      await aiTutorSessions.insertOne(finalSession as any);
     } else {
+      const newInterventionCount = (session.interventionCount || 0) + 1;
       await aiTutorSessions.updateOne(
         { _id: session._id },
         {
           $set: {
             understandingState: interventionType === 'escape_route' ? 'stuck' : 'checking',
             stuckPoint: stuckPoint as any,
-            interventionCount: (session.interventionCount || 0) + 1,
+            interventionCount: newInterventionCount,
             lastInterventionAt: now,
             updatedAt: now,
           },
@@ -276,15 +278,16 @@ ${problem.problemText || '문제 이미지를 확인해주세요.'}
           },
         }
       );
+      finalSession = {
+        ...session,
+        interventionCount: newInterventionCount,
+      };
     }
 
     return NextResponse.json({
       success: true,
       intervention: interventionData,
-      session: {
-        ...session,
-        interventionCount: (session.interventionCount || 0) + 1,
-      },
+      session: finalSession,
     });
   } catch (error) {
     console.error('AI 개입 오류:', error);
