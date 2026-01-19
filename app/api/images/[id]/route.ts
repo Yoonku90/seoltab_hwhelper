@@ -6,10 +6,10 @@ import { existsSync } from 'fs';
 // GET /api/images/[id] - 이미지 파일 서빙
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const fileId = params.id;
+    const { id: fileId } = await params;
     const searchParams = req.nextUrl.searchParams;
     const ext = searchParams.get('ext') || 'jpg';
 

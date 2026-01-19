@@ -5,10 +5,10 @@ import { ObjectId } from 'mongodb';
 // POST /api/assignments/:id/top5/confirm - Top5 질문 확정
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const assignmentId = params.id;
+    const { id: assignmentId } = await params;
     const body = await req.json();
     const { problemIds, studentId } = body;
 

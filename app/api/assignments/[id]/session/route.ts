@@ -5,10 +5,10 @@ import { ObjectId } from 'mongodb';
 // GET /api/assignments/:id/session - 과제 세션 조회 (문제 리스트 + 최신 상태)
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const assignmentId = params.id;
+    const { id: assignmentId } = await params;
 
     if (!ObjectId.isValid(assignmentId)) {
       return NextResponse.json(

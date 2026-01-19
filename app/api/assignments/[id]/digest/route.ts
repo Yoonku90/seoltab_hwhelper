@@ -5,10 +5,10 @@ import { ObjectId } from 'mongodb';
 // GET /api/assignments/:id/digest - Digest 조회
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const assignmentId = params.id;
+    const { id: assignmentId } = await params;
 
     if (!ObjectId.isValid(assignmentId)) {
       return NextResponse.json(

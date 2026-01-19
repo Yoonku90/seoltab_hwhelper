@@ -4,10 +4,10 @@ import { Collections } from '@/lib/db';
 // GET /api/teachers/:id/dashboard - 선생님 대시보드
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const teacherId = params.id;
+    const { id: teacherId } = await params;
 
     const assignments = await Collections.assignments();
     const assignmentList = await assignments

@@ -15,10 +15,10 @@ import { existsSync } from 'fs';
 // POST /api/problems/:id/help?step=1..4 - 단계별 힌트 제공
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const problemId = params.id;
+    const { id: problemId } = await params;
     const searchParams = req.nextUrl.searchParams;
     const step = parseInt(searchParams.get('step') || '1');
 

@@ -6,10 +6,10 @@ import { ProblemStatus } from '@/lib/types';
 // POST /api/problems/:id/status - 문제 상태 업데이트
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const problemId = params.id;
+    const { id: problemId } = await params;
     const body = await req.json();
     const { status, studentId, timeSpent } = body;
 
