@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import MarkdownMath from '@/app/components/MarkdownMath';
@@ -303,7 +303,7 @@ function buildQuickCheck(text: string, seed: number, hint?: CardQuizHint | null)
   };
 }
 
-export default function LectureSummaryPage() {
+function LectureSummaryPage() {
   const router = useRouter();
   const cardScrollRef = useRef<HTMLDivElement | null>(null);
   const searchParams = useSearchParams();
@@ -1271,6 +1271,14 @@ export default function LectureSummaryPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LectureSummaryPage />
+    </Suspense>
   );
 }
 
