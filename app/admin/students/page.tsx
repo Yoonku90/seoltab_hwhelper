@@ -125,7 +125,7 @@ export default function AdminStudentsPage() {
                     🖼️ 이미지 {stats.imageUploadCount || 0}개 |
                     🎯 세션 {student.agentMemory?.totalSessions || 0}회
                   </div>
-                  {student.agentMemory?.recentTopics?.length > 0 && (
+                  {Array.isArray(student.agentMemory?.recentTopics) && student.agentMemory.recentTopics.length > 0 && (
                     <div className={styles.recentTopics}>
                       최근 학습: {student.agentMemory.recentTopics.slice(0, 3).join(', ')}
                     </div>

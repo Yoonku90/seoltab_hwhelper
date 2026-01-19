@@ -139,7 +139,7 @@ export default function StudentDetailPage() {
         </div>
 
         {/* 최근 학습 주제 */}
-        {student.agentMemory?.recentTopics?.length > 0 && (
+        {Array.isArray(student.agentMemory?.recentTopics) && student.agentMemory.recentTopics.length > 0 && (
           <div className={styles.topicsSection}>
             <h3 className={styles.subTitle}>📚 최근 학습 주제</h3>
             <div className={styles.topicTags}>
@@ -151,7 +151,7 @@ export default function StudentDetailPage() {
         )}
 
         {/* 자주 막히는 부분 */}
-        {student.agentMemory?.frequentStuckPoints?.length > 0 && (
+        {Array.isArray(student.agentMemory?.frequentStuckPoints) && student.agentMemory.frequentStuckPoints.length > 0 && (
           <div className={styles.stuckSection}>
             <h3 className={styles.subTitle}>⚠️ 자주 막히는 부분</h3>
             <div className={styles.stuckList}>
