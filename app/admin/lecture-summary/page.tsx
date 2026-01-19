@@ -101,6 +101,8 @@ const KEYWORD_STOPWORDS = new Set([
   '오늘', '수업', '핵심', '정리', '내용', '부분', '문제', '설명', '예시', '규칙', '개념',
   '학생', '선생님', '쌤', '요약', '포인트', '중요', '정답', '이번', '이것', '그것', '또는',
   '그리고', '때문', '정리하면', '예를', '예시로', '다음', '처음', '마지막', '비교',
+  '있다', '없다', '된다', '된다', '한다', '한다', '이다', '이다', '되다', '하다',
+  '이렇게', '그렇게', '저렇게', '어떻게', '무엇', '누구', '언제', '어디', '왜',
 ]);
 
 const KEYWORD_SUFFIX_BOOST = [
@@ -108,10 +110,25 @@ const KEYWORD_SUFFIX_BOOST = [
   '비례', '부등식', '명사', '동사', '형용사', '절', '구', '시제', '비교급', '최상급',
   '접속사', '관계대명사', '확률', '통계', '용액', '전압', '전류', '속도', '가속도',
   '세포', '유전', '광합성', '지형', '기후', '헌법', '국회', '미분', '적분',
+  '효소', '반응', '화합물', '원소', '분자', '이온', '산성', '염기성', '중성',
+  '삼각형', '사각형', '원', '각도', '면적', '부피', '둘레', '반지름', '지름',
 ];
 
+// 키워드가 의미있는 개념인지 판단
+function isMeaningfulKeyword(token: string): boolean {
+  if (token.length < 2) return false;
+  if (KEYWORD_STOPWORDS.has(token)) return false;
+  // 숫자만 있는 경우 제외
+  if (/^\d+$/.test(token)) return false;
+  // 한 글자 한글 제외 (조사 등)
+  if (/^[가-힣]$/.test(token)) return false;
+  return true;
+}
+
 function extractKeywordCandidates(text: string): string[] {
-  return (text.match(/[A-Za-z가-힣]{2,}/g) || []).filter((token) => !KEYWORD_STOPWORDS.has(token));
+  // 한글 단어, 영어 단어, 한글+영어 조합 추출
+  const tokens = text.match(/[A-Za-z가-힣]{2,}/g) || [];
+  return tokens.filter((token) => isMeaningfulKeyword(token));
 }
 
 function pickKeyTermFromText(text: string): { sentence: string; keyword: string; distractor: string } | null {
@@ -119,44 +136,69 @@ function pickKeyTermFromText(text: string): { sentence: string; keyword: string;
   const sentences = cleaned
     .split(/\n|(?<=[.!?])\s+/)
     .map((sentence) => sentence.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((s) => s.length > 10); // 너무 짧은 문장 제외
 
   if (sentences.length === 0) return null;
 
   const tokenCounts = new Map<string, number>();
+  const tokenSentences = new Map<string, string>(); // 각 토큰이 나온 문장 저장
+  
   sentences.forEach((sentence) => {
     extractKeywordCandidates(sentence).forEach((token) => {
       tokenCounts.set(token, (tokenCounts.get(token) || 0) + 1);
+      if (!tokenSentences.has(token)) {
+        tokenSentences.set(token, sentence);
+      }
     });
   });
+
+  if (tokenCounts.size === 0) return null;
 
   let bestToken = '';
   let bestSentence = sentences[0];
   let bestScore = -1;
 
+  // 각 문장에서 가장 좋은 키워드 찾기
   sentences.forEach((sentence, sentenceIndex) => {
     const tokens = extractKeywordCandidates(sentence);
     tokens.forEach((token) => {
       const freq = tokenCounts.get(token) || 0;
-      const lengthScore = Math.min(token.length, 8);
-      const freqScore = freq > 1 ? (freq - 1) * 2 : 0;
-      const suffixScore = KEYWORD_SUFFIX_BOOST.some((suffix) => token.endsWith(suffix)) ? 3 : 0;
-      const earlyScore = sentenceIndex === 0 ? 2 : 0;
-      const score = lengthScore + freqScore + suffixScore + earlyScore;
+      const lengthScore = Math.min(token.length, 8); // 2-8자 사이가 이상적
+      const freqScore = freq > 1 ? Math.min((freq - 1) * 2, 10) : 0; // 빈도 점수 (최대 10)
+      const suffixScore = KEYWORD_SUFFIX_BOOST.some((suffix) => token.endsWith(suffix)) ? 5 : 0; // 용어 접미사 보너스
+      const earlyScore = sentenceIndex < 3 ? (3 - sentenceIndex) : 0; // 앞쪽 문장 우선
+      const boldScore = sentence.includes(`**${token}**`) ? 3 : 0; // 볼드 처리된 키워드 우선
+      const score = lengthScore + freqScore + suffixScore + earlyScore + boldScore;
 
       if (score > bestScore) {
         bestScore = score;
         bestToken = token;
-        bestSentence = sentence;
+        bestSentence = tokenSentences.get(token) || sentence;
       }
     });
   });
 
-  if (!bestToken) return null;
+  if (!bestToken || bestScore < 5) return null; // 최소 점수 미달 시 null 반환
 
-  const alternativeTokens = Array.from(tokenCounts.keys()).filter((token) => token !== bestToken);
-  const distractor =
-    alternativeTokens.sort((a, b) => (tokenCounts.get(b) || 0) - (tokenCounts.get(a) || 0))[0] || '다른 개념';
+  // 오답(distractor) 선택: 같은 문장에 있지 않고, 다른 의미의 키워드
+  const alternativeTokens = Array.from(tokenCounts.keys())
+    .filter((token) => token !== bestToken)
+    .filter((token) => {
+      // 같은 문장에 있으면 제외 (비슷한 의미일 가능성)
+      const tokenSentence = tokenSentences.get(token) || '';
+      return tokenSentence !== bestSentence;
+    });
+
+  // 빈도가 높고, 접미사 보너스가 있는 키워드를 오답으로 선택
+  const distractor = alternativeTokens
+    .sort((a, b) => {
+      const aFreq = tokenCounts.get(a) || 0;
+      const bFreq = tokenCounts.get(b) || 0;
+      const aSuffix = KEYWORD_SUFFIX_BOOST.some((suffix) => a.endsWith(suffix)) ? 1 : 0;
+      const bSuffix = KEYWORD_SUFFIX_BOOST.some((suffix) => b.endsWith(suffix)) ? 1 : 0;
+      return (bFreq + bSuffix) - (aFreq + aSuffix);
+    })[0] || '다른 개념';
 
   return { sentence: bestSentence, keyword: bestToken, distractor };
 }
