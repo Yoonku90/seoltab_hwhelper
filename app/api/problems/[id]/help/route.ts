@@ -47,7 +47,7 @@ export async function POST(
     }
 
     const problems = await Collections.problems();
-    const problem = await problems.findOne({ _id: new ObjectId(problemId) });
+    const problem = await problems.findOne({ _id: new ObjectId(problemId) } as any);
 
     if (!problem) {
       return NextResponse.json(

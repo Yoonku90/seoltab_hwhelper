@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     const problems = await Collections.problems();
     const aiTutorSessions = await Collections.aiTutorSessions();
-    const problem = await problems.findOne({ _id: new ObjectId(problemId) });
+    const problem = await problems.findOne({ _id: new ObjectId(problemId) } as any);
 
     if (!problem) {
       return NextResponse.json(
