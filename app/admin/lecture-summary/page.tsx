@@ -236,11 +236,14 @@ function normalizeSummaryObject(summary: any): any {
 function detectGrammarChoice(text: string): { keyword: string; distractor: string } | null {
   const lower = text.toLowerCase();
 
-  if (/(?:-est|most)/.test(lower) || text.includes('최상급') || text.includes('가장')) {
+  // 영어 문법 패턴만 감지 (한국어 "가장"은 제외)
+  // -est, most + 명사/형용사 조합만 감지
+  if (/(?:-est\b|most\s+\w+)/.test(lower) || text.includes('최상급')) {
     return { keyword: '최상급', distractor: '비교급' };
   }
 
-  if (/(?:-er|more)/.test(lower) || text.includes('비교급') || text.includes('than')) {
+  // -er, more + than 조합만 감지
+  if (/(?:-er\b|more\s+\w+\s+than|than\s+\w+)/.test(lower) || (text.includes('비교급') && text.includes('than'))) {
     return { keyword: '비교급', distractor: '최상급' };
   }
 
@@ -253,7 +256,7 @@ type CardQuizHint = {
   answerIndex?: number;
 };
 
-function buildQuickCheck(text: string, seed: number, hint?: CardQuizHint | null): {
+function buildQuickCheck(text: string, seed: number, hint?: CardQuizHint | null, subject?: string | null): {
   question: string;
   options: [string, string];
   answerIndex: number;
@@ -271,7 +274,9 @@ function buildQuickCheck(text: string, seed: number, hint?: CardQuizHint | null)
     }
   }
 
-  const grammarChoice = detectGrammarChoice(text);
+  // 영어 과목일 때만 영어 문법 패턴 감지
+  const isEnglish = subject && (subject.includes('영어') || subject.toLowerCase().includes('english'));
+  const grammarChoice = isEnglish ? detectGrammarChoice(text) : null;
   if (grammarChoice) {
     const cleaned = stripMarkdown(text);
     const sentence = cleaned.split('\n').map((line) => line.trim()).filter(Boolean)[0] || cleaned;
@@ -878,7 +883,8 @@ function LectureSummaryPage() {
                           card.checkable && typeof card.coreIndex === 'number'
                             ? summaryResult?.summary?.cardQuizHints?.[card.coreIndex]
                             : null;
-                        const quickCheck = card.checkable ? buildQuickCheck(card.body, idx, hint) : null;
+                        const subject = summaryResult?.curriculumReference?.subject || summaryResult?.subject || null;
+                        const quickCheck = card.checkable ? buildQuickCheck(card.body, idx, hint, subject) : null;
                         const isFlipped = !!cardFlipped[idx];
                         return (
                           <div

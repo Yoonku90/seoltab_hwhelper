@@ -5,7 +5,15 @@ import 'katex/dist/katex.min.css'
 import katex from 'katex'
 import { restoreLatexEscapes } from '@/lib/text-utils'
 
-interface LatexRendererProps {
+/**
+ * 마크다운, LaTeX, 옛한글을 모두 처리하는 통합 렌더러
+ * 
+ * 기능:
+ * - 마크다운 문법 (표, 리스트, 강조 등)
+ * - LaTeX 수식 렌더링
+ * - 옛한글(아래아 ㆍ 포함) 합자 및 폰트 적용
+ */
+interface ContentRendererProps {
   content: string
   className?: string
 }
@@ -105,7 +113,7 @@ function buildTableHtml(rows: string[][], hasHeader: boolean): string {
   })
 
   const tableStyle = 'border-collapse:collapse;width:100%;margin:12px 0;font-size:14px;'
-  const thStyle = 'border:1px solid #ddd;padding:10px 12px;background:#f5f5f5;font-weight:600;text-align:left;'
+  const thStyle = 'border:1px solid #ddd;padding:10px 12px;background:#f5f5f5;font-weight:600;text-align:left;color:#000000;'
   const tdStyle = 'border:1px solid #ddd;padding:10px 12px;vertical-align:top;'
 
   let html = `<table style="${tableStyle}">`
@@ -231,9 +239,137 @@ function convertMathExpressions(text: string): string {
   }).join('')
 }
 
+// 옛한글 자모 감지 (초성/중성/종성 자모 포함)
+function hasOldHangulJamo(text: string): boolean {
+  // U+1100-11FF: Hangul Jamo (초성/중성/종성 자모)
+  // U+A960-A97F: Hangul Jamo Extended-A
+  // U+D7B0-D7FF: Hangul Jamo Extended-B
+  // U+3130-318F: Hangul Compatibility Jamo (호환용 자모, ㆍ 포함)
+  // 아래아: ㆍ (U+318D), ᆞ (U+119E)
+  return /[\u1100-\u11FF\uA960-\uA97F\uD7B0-\uD7FF\u3130-\u318F]/.test(text)
+}
+
+// 한글 자모를 합자된 음절 블록으로 변환
+function combineHangulJamo(text: string): string {
+  // 한글 자모 범위
+  // 초성: U+1100-1112 (19개)
+  // 중성: U+1161-1175 (21개)
+  // 종성: U+11A8-11C2 (28개)
+  
+  let result = ''
+  let i = 0
+  
+  while (i < text.length) {
+    const char = text[i]
+    const code = char.charCodeAt(0)
+    
+    // 초성 자모 범위 (U+1100-1112)
+    if (code >= 0x1100 && code <= 0x1112) {
+      const choseong = code - 0x1100 // 초성 인덱스 (0-18)
+      
+      // 다음 문자가 중성인지 확인
+      if (i + 1 < text.length) {
+        const nextChar = text[i + 1]
+        const nextCode = nextChar.charCodeAt(0)
+        
+        // 중성 자모 범위 (U+1161-1175)
+        if (nextCode >= 0x1161 && nextCode <= 0x1175) {
+          const jungseong = nextCode - 0x1161 // 중성 인덱스 (0-20)
+          
+          // 종성이 있는지 확인
+          if (i + 2 < text.length) {
+            const nextNextChar = text[i + 2]
+            const nextNextCode = nextNextChar.charCodeAt(0)
+            
+            // 종성 자모 범위 (U+11A8-11C2)
+            if (nextNextCode >= 0x11A8 && nextNextCode <= 0x11C2) {
+              const jongseong = nextNextCode - 0x11A8 // 종성 인덱스 (0-27)
+              
+              // 합자 공식: (초성 * 21 + 중성) * 28 + 종성 + 0xAC00
+              const syllableCode = (choseong * 21 + jungseong) * 28 + jongseong + 0xAC00
+              result += String.fromCharCode(syllableCode)
+              i += 3
+              continue
+            }
+          }
+          
+          // 종성 없이 초성+중성만 있는 경우
+          const syllableCode = (choseong * 21 + jungseong) * 28 + 0xAC00
+          result += String.fromCharCode(syllableCode)
+          i += 2
+          continue
+        }
+      }
+    }
+    
+    // 합자할 수 없는 경우 원본 문자 그대로 추가
+    result += char
+    i++
+  }
+  
+  return result
+}
+
+// 옛한글 부분을 span으로 감싸서 폰트 적용
+function wrapOldHangul(text: string): string {
+  // HTML 태그 내부의 텍스트도 처리해야 함 (예: <strong>고ḇ다</strong>)
+  // 하지만 HTML 태그 자체는 건드리지 않음
+  
+  // 1단계: HTML 태그를 임시로 보호
+  const htmlTags: string[] = []
+  let protectedText = text.replace(/<[^>]+>/g, (match) => {
+    htmlTags.push(match)
+    return `__HTML_TAG_${htmlTags.length - 1}__`
+  })
+  
+  // 2단계: 옛한글 자모가 포함된 부분 찾기
+  // 일반 한글 + 옛한글 자모 조합도 포함 (예: '소ᄂᆞᆯ', '므를')
+  // 옛한글 자모가 포함된 연속된 문자 그룹을 찾아서 전체를 감싸기
+  // 패턴: 일반 한글이 0개 이상 + 옛한글 자모 1개 이상 + (일반 한글 또는 옛한글 자모) 0개 이상
+  // 단어 경계를 고려하여 더 정확하게 매칭
+  // 옛한글 자모 범위: U+1100-11FF (Hangul Jamo), U+A960-A97F (Extended-A), U+D7B0-D7FF (Extended-B), U+3130-318F (Compatibility)
+  const oldHangulPattern = /([가-힣ㄱ-ㅎㅏ-ㅣ]*[\u1100-\u11FF\uA960-\uA97F\uD7B0-\uD7FF\u3130-\u318F]+[가-힣ㄱ-ㅎㅏ-ㅣ\u1100-\u11FF\uA960-\uA97F\uD7B0-\uD7FF\u3130-\u318F]*)/g
+  
+  let result = protectedText
+  let lastIndex = 0
+  const matches: Array<{ start: number; end: number; text: string }> = []
+  
+  // 모든 매칭 위치 찾기
+  let match
+  while ((match = oldHangulPattern.exec(protectedText)) !== null) {
+    if (hasOldHangulJamo(match[0]) && !match[0].includes('<span')) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: match[0]
+      })
+    }
+  }
+  
+  // 뒤에서부터 처리하여 인덱스가 꼬이지 않도록
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const m = matches[i]
+    // 옛한글 자모를 합자된 형태로 변환
+    const combined = combineHangulJamo(m.text)
+    const before = result.substring(0, m.start)
+    const after = result.substring(m.end)
+    result = before + `<span class="old-hangul">${combined}</span>` + after
+  }
+  
+  // 3단계: HTML 태그 복원
+  htmlTags.forEach((tag, idx) => {
+    result = result.replace(`__HTML_TAG_${idx}__`, tag)
+  })
+  
+  return result
+}
+
 // 마크다운 + HTML을 처리하고 LaTeX를 렌더링
 function renderContent(text: string): string {
   if (!text) return ''
+
+  // 0. 옛한글 폰트 적용 (가장 먼저 처리, HTML 변환 전)
+  text = wrapOldHangul(text)
 
   // 0. LaTeX 수식 내부의 잘못된 줄바꿈 먼저 제거 (가장 먼저 처리)
   // $...$ 내부의 줄바꿈을 제거 (예: t\nh\ne → the)
@@ -410,8 +546,41 @@ function renderContent(text: string): string {
   return result
 }
 
-export default function MarkdownMath({ content, className = '' }: LatexRendererProps) {
-  const html = useMemo(() => renderContent(content || ''), [content])
+/**
+ * 마크다운, LaTeX, 옛한글을 모두 처리하는 통합 렌더러 컴포넌트
+ * 
+ * @deprecated 컴포넌트 이름은 MarkdownMath이지만, 실제로는 마크다운/LaTeX/옛한글을 모두 처리합니다.
+ * 향후 MarkdownRenderer로 이름 변경 예정.
+ */
+export default function MarkdownMath({ content, className = '' }: ContentRendererProps) {
+  const html = useMemo(() => {
+    const rendered = renderContent(content || '')
+    
+    // 옛한글 폰트 로딩 확인 (개발 환경)
+    if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+      const hasOldHangul = hasOldHangulJamo(rendered)
+      
+      if (hasOldHangul) {
+        const detectedJamo = rendered.match(/[\u1100-\u11FF\uA960-\uA97F\uD7B0-\uD7FF\u3130-\u318F]+/g)
+        console.log('[MarkdownMath] 옛한글 자모 감지됨:', detectedJamo)
+        
+        // 폰트 로딩 확인
+        document.fonts.ready.then(() => {
+          setTimeout(() => {
+            const oldHangulElements = document.querySelectorAll('.old-hangul')
+            if (oldHangulElements.length > 0) {
+              const firstElement = oldHangulElements[0] as HTMLElement
+              const computedStyle = window.getComputedStyle(firstElement)
+              const actualFont = computedStyle.fontFamily
+              console.log('[MarkdownMath] 실제 적용된 폰트:', actualFont)
+            }
+          }, 100)
+        })
+      }
+    }
+    
+    return rendered
+  }, [content])
 
   return (
     <span
@@ -423,7 +592,7 @@ export default function MarkdownMath({ content, className = '' }: LatexRendererP
 }
 
 // 문제 렌더링용 (빈칸 문제 처리 포함)
-export function ProblemRenderer({ content, className = '' }: LatexRendererProps) {
+export function ProblemRenderer({ content, className = '' }: ContentRendererProps) {
   const html = useMemo(() => {
     let result = content || ''
     
