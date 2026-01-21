@@ -510,8 +510,25 @@ function renderTable(data: ShapeItem) {
   const headers = Array.isArray(data.headers) ? data.headers : [];
   const rows = Array.isArray(data.rows) ? data.rows : [];
   return (
-    <div style={{ overflowX: 'auto' }} aria-label={data.name || 'table'}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+    <div style={{ 
+      overflowX: 'auto', 
+      overflowY: 'visible',
+      width: '100%',
+      maxWidth: '100%',
+      WebkitOverflowScrolling: 'touch',
+      msOverflowStyle: 'auto',
+      scrollbarWidth: 'thin',
+      position: 'relative',
+      display: 'block',
+      minWidth: 0
+    }} aria-label={data.name || 'table'}>
+      <table style={{ 
+        borderCollapse: 'collapse', 
+        fontSize: 13,
+        tableLayout: 'auto',
+        width: 'max-content',
+        minWidth: '100%'
+      }}>
         {headers.length > 0 && (
           <thead>
             <tr>
@@ -524,6 +541,7 @@ function renderTable(data: ShapeItem) {
                     borderBottom: `1px solid ${COLORS.gridDark}`,
                     background: COLORS.background,
                     color: COLORS.text,
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {header}
@@ -554,6 +572,391 @@ function renderTable(data: ShapeItem) {
   );
 }
 
+function renderChart(data: ShapeItem) {
+  const config = data.chart_config || {};
+  const layers = Array.isArray(data.layers) ? data.layers : [];
+  const tempCurve = data.temperature_curve || {};
+  const visualElements = Array.isArray(data.visual_elements) ? data.visual_elements : [];
+
+  // 원본 차트 크기 (viewBox와 좌표 계산에 사용)
+  const originalWidth = toNumber(config.dimensions?.width, 600);
+  const originalHeight = toNumber(config.dimensions?.height, 1000);
+  const width = originalWidth;
+  const height = originalHeight;
+  const padding = 80;
+  const chartWidth = width - padding * 2;
+  const chartHeight = height - padding * 2;
+
+  // 축 범위
+  const yMin = toNumber(config.y_axis?.min, 0);
+  const yMax = toNumber(config.y_axis?.max, 120);
+  const xMin = toNumber(config.x_axis?.min, -80);
+  const xMax = toNumber(config.x_axis?.max, 20);
+
+  // 좌표 변환 함수
+  const mapY = (alt: number) => {
+    const ratio = (alt - yMin) / (yMax - yMin);
+    return padding + chartHeight - ratio * chartHeight;
+  };
+
+  const mapX = (temp: number) => {
+    const ratio = (temp - xMin) / (xMax - xMin);
+    return padding + ratio * chartWidth;
+  };
+
+  // 배경 그라데이션
+  const gradientStops = Array.isArray(config.background_gradient?.stops)
+    ? config.background_gradient.stops
+    : [];
+
+  return (
+    <div style={{ 
+      position: 'static',
+      display: 'block',
+      width: '100%',
+      maxWidth: '100%',
+      height: 'auto',
+      margin: '20px 0',
+      padding: '0',
+      overflow: 'hidden',
+      clear: 'both',
+      borderRadius: '10px',
+      zIndex: 'auto'
+    }}>
+      {config.title && (
+        <h3 style={{ textAlign: 'center', marginBottom: '16px', fontSize: '18px', fontWeight: 'bold' }}>
+          {config.title}
+        </h3>
+      )}
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width="100%"
+        height="auto"
+        style={{ 
+          maxHeight: '400px',
+          maxWidth: '100%',
+          display: 'block',
+          position: 'static',
+          width: '100%',
+          height: 'auto',
+          margin: '0',
+          padding: '0',
+          verticalAlign: 'top',
+          borderRadius: '10px',
+          zIndex: 'auto'
+        }}
+        preserveAspectRatio="xMidYMid meet"
+        aria-label={config.title || 'atmosphere chart'}
+      >
+        <defs>
+          {/* 배경 그라데이션 */}
+          {gradientStops.length > 0 && (
+            <linearGradient id="bgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              {gradientStops.map((stop: any, idx: number) => (
+                <stop
+                  key={idx}
+                  offset={`${toNumber(stop.offset, 0) * 100}%`}
+                  stopColor={stop.color || '#1A237E'}
+                />
+              ))}
+            </linearGradient>
+          )}
+        </defs>
+
+        {/* 배경 */}
+        <rect x={0} y={0} width={width} height={height} fill="url(#bgGradient)" />
+
+        {/* 격자선 (Y축) */}
+        {Array.isArray(config.y_axis?.ticks) &&
+          config.y_axis.ticks.map((tick: number, idx: number) => {
+            const y = mapY(tick);
+            return (
+              <g key={`y-grid-${idx}`}>
+                <line
+                  x1={padding}
+                  y1={y}
+                  x2={width - padding}
+                  y2={y}
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth={1}
+                  strokeDasharray="4,4"
+                />
+                <text
+                  x={padding - 10}
+                  y={y + 4}
+                  fill="#fff"
+                  fontSize={12}
+                  textAnchor="end"
+                  fontWeight="500"
+                >
+                  {tick}
+                </text>
+              </g>
+            );
+          })}
+
+        {/* 격자선 (X축) */}
+        {Array.isArray(config.x_axis?.ticks) &&
+          config.x_axis.ticks.map((tick: number, idx: number) => {
+            const x = mapX(tick);
+            return (
+              <g key={`x-grid-${idx}`}>
+                <line
+                  x1={x}
+                  y1={padding}
+                  x2={x}
+                  y2={height - padding}
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth={1}
+                  strokeDasharray="4,4"
+                />
+                <text
+                  x={x}
+                  y={height - padding + 20}
+                  fill="#fff"
+                  fontSize={12}
+                  textAnchor="middle"
+                  fontWeight="500"
+                >
+                  {tick}
+                </text>
+              </g>
+            );
+          })}
+
+        {/* 대기권 층 구분선 및 레이블 */}
+        {layers.map((layer: any, idx: number) => {
+          const [minAlt, maxAlt] = Array.isArray(layer.range_km) ? layer.range_km : [0, 0];
+          const yTop = mapY(maxAlt);
+          const yBottom = mapY(minAlt);
+          const labelPos = layer.label_pos || { x: -75, y: (yTop + yBottom) / 2 };
+
+          return (
+            <g key={`layer-${idx}`}>
+              {/* 층 구분선 */}
+              {layer.boundary_y !== null && layer.boundary_y !== undefined && (
+                <line
+                  x1={padding}
+                  y1={mapY(toNumber(layer.boundary_y))}
+                  x2={width - padding}
+                  y2={mapY(toNumber(layer.boundary_y))}
+                  stroke="#fff"
+                  strokeWidth={2}
+                  strokeDasharray="8,4"
+                  opacity={0.6}
+                />
+              )}
+              {/* 층 레이블 */}
+              {layer.name && (
+                <text
+                  x={mapX(toNumber(labelPos.x))}
+                  y={mapY(toNumber(labelPos.y))}
+                  fill="#fff"
+                  fontSize={14}
+                  fontWeight="bold"
+                  textAnchor="start"
+                >
+                  {layer.name}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* 온도 곡선 */}
+        {Array.isArray(tempCurve.points) && tempCurve.points.length > 0 && (
+          <g>
+            <path
+              d={`M ${tempCurve.points
+                .map((pt: any) => `${mapX(toNumber(pt.temp))},${mapY(toNumber(pt.alt))}`)
+                .join(' L ')}`}
+              fill="none"
+              stroke={tempCurve.color || '#D81B60'}
+              strokeWidth={toNumber(tempCurve.line_width, 3)}
+            />
+            {/* 온도 점 */}
+            {tempCurve.points.map((pt: any, idx: number) => (
+              <circle
+                key={`temp-pt-${idx}`}
+                cx={mapX(toNumber(pt.temp))}
+                cy={mapY(toNumber(pt.alt))}
+                r={4}
+                fill={tempCurve.color || '#D81B60'}
+              />
+            ))}
+          </g>
+        )}
+
+        {/* 시각적 요소 */}
+        {visualElements.map((elem: any, idx: number) => {
+          const pos = elem.position || { x: 0, y: 0 };
+          const style = elem.style || {};
+
+          if (elem.type === 'highlight_band' && elem.range_y) {
+            const [y1, y2] = Array.isArray(elem.range_y) ? elem.range_y : [0, 0];
+            return (
+              <g key={`visual-${idx}`}>
+                <rect
+                  x={padding}
+                  y={mapY(y2)}
+                  width={chartWidth}
+                  height={mapY(y1) - mapY(y2)}
+                  fill={style.color || '#FFFFFF'}
+                  opacity={toNumber(style.opacity, 0.3)}
+                />
+                {elem.label && (
+                  <text
+                    x={padding + chartWidth / 2}
+                    y={(mapY(y1) + mapY(y2)) / 2}
+                    fill="#fff"
+                    fontSize={12}
+                    textAnchor="middle"
+                    fontWeight="bold"
+                  >
+                    {elem.label}
+                  </text>
+                )}
+              </g>
+            );
+          }
+
+          // 아이콘 요소 (간단한 표현)
+          if (elem.type === 'icon') {
+            const iconX = mapX(toNumber(pos.x));
+            const iconY = mapY(toNumber(pos.y));
+
+            if (style.shape === 'mountain_range') {
+              return (
+                <g key={`visual-${idx}`}>
+                  <path
+                    d={`M ${iconX} ${iconY} L ${iconX + 20} ${iconY - 15} L ${iconX + 40} ${iconY} Z`}
+                    fill={style.color || '#4CAF50'}
+                  />
+                </g>
+              );
+            }
+
+            if (style.shape === 'cloud') {
+              return (
+                <g key={`visual-${idx}`} opacity={toNumber(style.opacity, 0.8)}>
+                  <ellipse cx={iconX} cy={iconY} rx={15} ry={10} fill={style.color || '#FFFFFF'} />
+                  <ellipse cx={iconX + 10} cy={iconY} rx={12} ry={8} fill={style.color || '#FFFFFF'} />
+                  <ellipse cx={iconX - 10} cy={iconY} rx={10} ry={7} fill={style.color || '#FFFFFF'} />
+                </g>
+              );
+            }
+
+            if (style.shape === 'streak') {
+              return (
+                <g key={`visual-${idx}`}>
+                  <line
+                    x1={iconX}
+                    y1={iconY}
+                    x2={iconX + 30}
+                    y2={iconY + 30}
+                    stroke={style.color || '#FFF176'}
+                    strokeWidth={3}
+                  />
+                  {elem.label && (
+                    <text
+                      x={iconX + 35}
+                      y={iconY + 15}
+                      fill="#fff"
+                      fontSize={11}
+                      textAnchor="start"
+                    >
+                      {elem.label}
+                    </text>
+                  )}
+                </g>
+              );
+            }
+
+            if (style.shape === 'curtain_wave') {
+              const gradientColors = Array.isArray(style.gradient) ? style.gradient : ['#66FF66', '#FF6666'];
+              return (
+                <g key={`visual-${idx}`}>
+                  <defs>
+                    <linearGradient id={`auroraGrad-${idx}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={gradientColors[0]} />
+                      <stop offset="100%" stopColor={gradientColors[1]} />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d={`M ${iconX} ${iconY} Q ${iconX + 10} ${iconY - 5} ${iconX + 20} ${iconY} T ${iconX + 40} ${iconY}`}
+                    fill="none"
+                    stroke={`url(#auroraGrad-${idx})`}
+                    strokeWidth={4}
+                    opacity={0.7}
+                  />
+                  {elem.label && (
+                    <text
+                      x={iconX + 45}
+                      y={iconY}
+                      fill="#fff"
+                      fontSize={11}
+                      textAnchor="start"
+                    >
+                      {elem.label}
+                    </text>
+                  )}
+                </g>
+              );
+            }
+          }
+
+          return null;
+        })}
+
+        {/* 축 레이블 */}
+        {config.y_axis?.label && (
+          <text
+            x={20}
+            y={height / 2}
+            fill="#fff"
+            fontSize={14}
+            fontWeight="bold"
+            textAnchor="middle"
+            transform={`rotate(-90, 20, ${height / 2})`}
+          >
+            {config.y_axis.label}
+          </text>
+        )}
+        {config.x_axis?.label && (
+          <text
+            x={width / 2}
+            y={height - 20}
+            fill="#fff"
+            fontSize={14}
+            fontWeight="bold"
+            textAnchor="middle"
+          >
+            {config.x_axis.label}
+          </text>
+        )}
+
+        {/* 축선 */}
+        <line
+          x1={padding}
+          y1={padding}
+          x2={padding}
+          y2={height - padding}
+          stroke="#fff"
+          strokeWidth={2}
+        />
+        <line
+          x1={padding}
+          y1={height - padding}
+          x2={width - padding}
+          y2={height - padding}
+          stroke="#fff"
+          strokeWidth={2}
+        />
+      </svg>
+    </div>
+  );
+}
+
 export default function VisualAidRenderer({ shape }: { shape: ShapeItem }) {
   if (!shape) return null;
   const type = shape.type || shape.data?.type;
@@ -562,6 +965,7 @@ export default function VisualAidRenderer({ shape }: { shape: ShapeItem }) {
   if (type === 'geometry') return renderGeometry(data);
   if (type === 'graph') return renderGraph(data);
   if (type === 'table') return renderTable(data);
+  if (type === 'chart') return renderChart(data);
 
   return (
     <pre style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>

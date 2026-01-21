@@ -112,11 +112,12 @@ function buildTableHtml(rows: string[][], hasHeader: boolean): string {
     return normalized.slice(0, headerColCount)
   })
 
-  const tableStyle = 'border-collapse:collapse;width:100%;margin:12px 0;font-size:14px;'
-  const thStyle = 'border:1px solid #ddd;padding:10px 12px;background:#f5f5f5;font-weight:600;text-align:left;color:#000000;'
-  const tdStyle = 'border:1px solid #ddd;padding:10px 12px;vertical-align:top;'
+  const tableStyle = 'border-collapse:collapse;width:100%;margin:12px 0;font-size:14px;min-width:100%;background:#ffffff;'
+  const thStyle = 'border:1px solid #e0e0e0;padding:10px 12px;background:#f0f0f0;font-weight:600;text-align:left;color:#333333;white-space:nowrap;'
+  const tdStyle = 'border:1px solid #e0e0e0;padding:10px 12px;vertical-align:top;color:#333333;background:#ffffff;'
+  const wrapperStyle = 'overflow-x:auto;overflow-y:visible;width:100%;max-width:100%;margin:12px 0;'
 
-  let html = `<table style="${tableStyle}">`
+  let html = `<div style="${wrapperStyle}"><table style="${tableStyle}">`
 
   const startIdx = hasHeader ? 1 : 0
 
@@ -138,7 +139,7 @@ function buildTableHtml(rows: string[][], hasHeader: boolean): string {
     })
     html += '</tr>'
   }
-  html += '</tbody></table>'
+  html += '</tbody></table></div>'
 
   return html
 }
@@ -425,6 +426,9 @@ function renderContent(text: string): string {
   result = result.replace(/\\times\b/g, 'times')
 
   // 1. 마크다운 표 변환 (LaTeX 보호 후 처리)
+  // 주의: 표는 visualAids 섹션에만 표시되므로 detailedContent에서는 제거
+  // 표를 제거하려면 아래 주석을 해제하세요
+  // result = result.replace(/^\|.*\|$/gm, '') // 표 행 제거
   result = convertMarkdownTable(result)
 
   // 2. 빈칸(____) 처리: 언더스코어 4개 이상 연속은 빈칸으로 변환
@@ -434,12 +438,26 @@ function renderContent(text: string): string {
     return `<span style="display:inline-block;min-width:${width}em;border-bottom:2px solid #333;margin:0 0.2em;vertical-align:middle;position:relative;top:-0.5em;">&nbsp;</span>`
   })
 
-  // 3. 마크다운 변환
+  // 3. 마크다운 제목 변환 (### → strong with 20px, 먼저 처리)
   result = result
+    .replace(/^###\s+(.+)$/gm, '<strong style="font-size:20px;display:block;margin:16px 0 8px 0;">$1</strong>')
+    .replace(/^##\s+(.+)$/gm, '<h2>$1</h2>')
+    .replace(/^#\s+(.+)$/gm, '<h1>$1</h1>')
+
+  // 3-0. 구분선 처리 (---, ***, ___) - 시각적으로 명확한 구분선
+  result = result
+    .replace(/^[-*_]{3,}$/gm, '<hr style="border:none;border-top:2px solid rgba(0,0,0,0.1);margin:24px 0;width:100%;" />')
+
+  // 3-1. 마크다운 변환 (형광펜 먼저 처리)
+  result = result
+    .replace(/==([\s\S]+?)==/g, '<mark style="background:linear-gradient(transparent 45%, #fff59d 45%);color:#111;padding:0 3px;border-radius:2px;">$1</mark>')
     .replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>')
     .replace(/(?<!\*)\*(?!\*)([^*\n]+?)\*(?!\*)/g, '<em>$1</em>')
     .replace(/~~([\s\S]+?)~~/g, '<del>$1</del>')
     .replace(/__([\s\S]+?)__/g, '<u>$1</u>')
+
+  // 남아있는 ** 같은 잔여 마크다운 토큰 제거
+  result = result.replace(/\*\*/g, '')
 
   // 4. 번호 리스트 처리 (1. 2. 3. 형식)
   result = result.replace(/^(\d+)\.\s+(.+)$/gm, '<div style="margin-left:1em;margin-bottom:0.5em;"><strong>$1.</strong> $2</div>')

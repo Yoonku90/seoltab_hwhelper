@@ -1,8 +1,8 @@
 .container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: #ffffff;
   padding: 40px;
-  color: white;
+  color: #111827;
 }
 
 .header {
@@ -28,11 +28,25 @@
   font-size: 32px;
   font-weight: 700;
   margin: 0 0 8px 0;
+  color: #2c3e50;
+}
+
+.gradeBadge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2980b9;
+  background: #f1fafe;
+  border: 1px solid #caedfc;
 }
 
 .subtitle {
   font-size: 14px;
-  color: #888;
+  color: #6b7280;
   margin: 0;
 }
 
@@ -44,24 +58,25 @@
 .searchCard,
 .summaryCard,
 .errorCard {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  border: 1px solid #d9d9d9;
   border-radius: 16px;
   padding: 28px;
   margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: transform 0.2s, background 0.2s, border-color 0.2s;
 }
 
 .searchCard:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(79, 195, 247, 0.3);
+  background: #ffffff;
+  border-color: #d9d9d9;
 }
 
 .cardTitle {
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 20px;
-  color: white;
+  color: #2c3e50;
 }
 
 .searchForm {
@@ -79,30 +94,30 @@
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #ccc;
+  color: #111827;
   margin-bottom: 8px;
 }
 
 .input {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid #dddddd;
   border-radius: 10px;
   font-size: 14px;
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
+  background: #ffffff;
+  color: #111827;
   transition: all 0.2s;
 }
 
 .input::placeholder {
-  color: #666;
+  color: #6b7280;
 }
 
 .input:focus {
   outline: none;
-  border-color: #4fc3f7;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(79, 195, 247, 0.1);
+  border-color: #2980b9;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.15);
 }
 
 .input:disabled {
@@ -112,7 +127,7 @@
 
 .hint {
   font-size: 12px;
-  color: #888;
+  color: #6b7280;
   margin-top: 8px;
   line-height: 1.5;
 }
@@ -121,8 +136,8 @@
   margin-top: 16px;
   padding: 16px;
   border-radius: 12px;
-  background: rgba(79, 195, 247, 0.08);
-  border: 1px solid rgba(79, 195, 247, 0.2);
+  background: #f7fcff;
+  border: 1px solid #d9f3ff;
 }
 
 .curriculumMeta {
@@ -130,7 +145,7 @@
   gap: 12px;
   flex-wrap: wrap;
   font-size: 13px;
-  color: #cfd8dc;
+  color: #6b7280;
   margin-bottom: 10px;
 }
 
@@ -142,23 +157,23 @@
 }
 
 .curriculumItem {
-  color: #e0f2f1;
+  color: #111827;
   font-size: 13px;
 }
 
 .curriculumItemTitle {
   font-weight: 600;
-  color: #ffffff;
+  color: #4fc3f7;
 }
 
 .curriculumItemMeta {
-  color: #b0bec5;
+  color: #6b7280;
   margin-top: 4px;
 }
 
 .curriculumEmpty {
   font-size: 12px;
-  color: #90a4ae;
+  color: #6b7280;
   margin: 0;
 }
 
@@ -173,7 +188,7 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #d7d7d7;
+  color: #2c3e50;
 }
 
 .toggleInput {
@@ -183,8 +198,230 @@
 
 .toggleHint {
   font-size: 12px;
-  color: #888;
+  color: #666666;
   margin: 0;
+}
+
+.mappedSection {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.mappedHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mappedHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mappedToggle {
+  background: #eaf2f8;
+  color: #2980b9;
+  border: 1px solid #bcd6ea;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mappedToggle:hover {
+  background: #dbe9f6;
+}
+
+.mappedModeToggle {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.mappedModeButton,
+.mappedModeActive {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+}
+
+.mappedModeButton {
+  background: #ffffff;
+  color: #2c3e50;
+  border-color: #dddddd;
+}
+
+.mappedModeActive {
+  background: #eaf2f8;
+  color: #2980b9;
+  border-color: #bcd6ea;
+}
+
+.mappedFilters {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mappedFilterLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.mappedFilterLabel input {
+  width: 14px;
+  height: 14px;
+}
+
+.mappedBody {
+  margin-top: 12px;
+}
+
+.mappedCurriculum {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f7fcff;
+  border: 1px solid #d9f3ff;
+}
+
+.mappedCurriculumTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4fc3f7;
+  margin-bottom: 6px;
+}
+
+.mappedCurriculumHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mappedCurriculumMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.mappedCurriculumList {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #111827;
+}
+
+.mappedCurriculumItem {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #d9f3ff;
+}
+
+.mappedList {
+  display: grid;
+  gap: 16px;
+}
+
+.mappedCard {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  display: grid;
+  grid-template-columns: 480px minmax(240px, 360px);
+  gap: 12px;
+  align-items: start;
+}
+
+.mappedImage {
+  width: 480px;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.mappedContent {
+  grid-column: 2 / 3;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mappedMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.mappedTexts {
+  display: grid;
+  gap: 8px;
+}
+
+.mappedTextItem {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: #111827;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+
+.mappedSpeaker {
+  font-weight: 600;
+  color: #2980b9;
+  text-transform: capitalize;
+}
+
+.mappedMore {
+  font-size: 12px;
+  color: #2980b9;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mappedEmpty {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.sttOnlyList {
+  display: grid;
+  gap: 8px;
+}
+
+.sttOnlyItem {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: #111827;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  line-height: 1.5;
 }
 
 .generateButton {
@@ -252,8 +489,8 @@
 }
 
 .summaryCard {
-  background: rgba(255, 107, 107, 0.1);
-  border: 1px solid rgba(255, 107, 107, 0.3);
+  background: #ffffff;
+  border: 1px solid #d9d9d9;
   border-radius: 12px;
   padding: 24px;
 }
@@ -264,7 +501,7 @@
   align-items: center;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 2px solid rgba(255, 107, 107, 0.3);
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .summaryActions {
@@ -341,7 +578,7 @@
   font-size: 24px;
   font-weight: 700;
   margin: 0;
-  color: #ff6b6b;
+  color: #9863ff;
 }
 
 .backButton {
@@ -349,9 +586,9 @@
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  color: #888;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #6b7280;
+  background: #ffffff;
+  border: 1px solid #d9d9d9;
   border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
@@ -360,13 +597,13 @@
 }
 
 .backButton:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(79, 195, 247, 0.3);
+  color: #111827;
+  background: #f9fafb;
+  border-color: #d9d9d9;
 }
 
 .summaryContent {
-  color: #e0e0e0;
+  color: #111827;
 }
 
 .studentInfo {
@@ -375,9 +612,10 @@
   gap: 16px;
   margin-bottom: 20px;
   padding: 12px 16px;
-  background: rgba(79, 195, 247, 0.1);
-  border: 1px solid rgba(79, 195, 247, 0.3);
+  background: #f1fafe;
+  border: 1px solid #caedfc;
   border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .studentName {
@@ -388,9 +626,10 @@
 
 .studentId {
   font-size: 13px;
-  color: #aaa;
+  color: #6b7280;
   padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: #ffffff;
+  border: 1px solid #caedfc;
   border-radius: 4px;
 }
 
@@ -400,25 +639,25 @@
   align-items: center;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .summaryHeader h4 {
   font-size: 18px;
   font-weight: 600;
   margin: 0;
-  color: white;
+  color: #111827;
 }
 
 .summaryLink a {
-  color: #4fc3f7;
+  color: #2980b9;
   text-decoration: none;
   font-size: 13px;
   transition: color 0.2s;
 }
 
 .summaryLink a:hover {
-  color: #81d4fa;
+  color: #1f6fa1;
   text-decoration: underline;
 }
 
@@ -435,29 +674,42 @@
 }
 
 .toggleBtn {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #dddddd;
+  background: #ffffff;
   border-radius: 999px;
   padding: 8px 12px;
   font-size: 12px;
-  color: #ddd;
+  color: #6b7280;
   cursor: pointer;
 }
 
 .toggleBtnActive {
-  border-color: #4fc3f7;
-  background: rgba(79, 195, 247, 0.2);
-  color: #4fc3f7;
+  border-color: #2980b9;
+  background: #eaf2f8;
+  color: #2980b9;
   font-weight: 700;
 }
 
 .cardCarousel {
   display: flex;
-  gap: 0;
+  gap: 12px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-snap-stop: always;
-  padding-bottom: 8px;
+  padding: 8px calc((100% - var(--card-width)) / 2);
+  margin: 0;
+  flex: 1;
+  /* 스마트폰 터치 스크롤 최적화 */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  justify-content: center;
+  align-items: stretch;
+  scroll-padding: calc((100% - var(--card-width)) / 2);
+}
+
+.cardCarousel::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 
 .cardControls {
@@ -465,7 +717,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  padding: 0 4px;
 }
 
 .cardNavBtn {
@@ -485,9 +738,13 @@
 }
 
 .cardHintText {
-  font-size: 11px;
-  color: #aaa;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
 }
 
 .cardProgress {
@@ -527,41 +784,83 @@
 }
 
 .phoneFrame {
-  width: 360px;
+  /* 스마트폰 크기 (최우선) */
+  width: 375px;
   max-width: 100%;
   margin: 0 auto;
-  padding: 12px;
-  border-radius: 24px;
-  background: #111;
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+  padding: 8px;
+  border-radius: 32px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    inset 0 0 20px rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+.phoneFrame::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 24px;
+  background: #000;
+  border-radius: 0 0 16px 16px;
+  z-index: 10;
+}
+
+.flashcardWrapper {
+  width: 100%;
+  max-width: 920px;
+  margin: 24px auto 0;
 }
 
 .phoneScreen {
-  border-radius: 20px;
-  background: #1c1f2b;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  background: #000;
+  padding: 20px 12px 16px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  min-height: 600px;
+  max-height: 800px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  --card-width: min(320px, 100% - 24px);
 }
 
 .cardItem {
-  flex: 0 0 100%;
-  min-width: 100%;
-  max-width: 100%;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  padding: 14px;
-  scroll-snap-align: start;
+  flex: 0 0 var(--card-width);
+  min-width: var(--card-width);
+  max-width: var(--card-width);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 18px 16px;
+  scroll-snap-align: center;
   perspective: 1200px;
   cursor: pointer;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin: 0 auto;
+}
+
+.cardItem:active {
+  transform: scale(0.98);
 }
 
 .cardInner {
   position: relative;
   width: 100%;
-  min-height: 280px;
+  min-height: 400px;
+  max-height: 500px;
   transform-style: preserve-3d;
-  transition: transform 0.5s ease;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
 }
 
 .cardInnerFlipped {
@@ -575,6 +874,8 @@
   backface-visibility: hidden;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
 .cardBack {
@@ -584,15 +885,19 @@
 .cardTitleRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 8px;
+  width: 100%;
 }
 
 .cardTitle {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   color: #fff;
+  line-height: 1.4;
+  letter-spacing: -0.2px;
+  text-align: center;
 }
 
 .cardCheckedBadge {
@@ -605,11 +910,31 @@
 }
 
 .cardBody {
-  font-size: 13px;
-  line-height: 1.6;
-  color: #e0e0e0;
-  max-height: 260px;
-  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #f0f0f0;
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  text-align: center;
+  width: 100%;
+  /* 스마트폰 터치 스크롤 최적화 */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.cardBody::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cardBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cardBody::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
 }
 
 .cardBody img {
@@ -669,6 +994,8 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
+  text-align: center;
+  width: 100%;
 }
 
 .cardQuizQuestion {
@@ -688,6 +1015,7 @@
   margin-top: 10px;
   display: grid;
   gap: 8px;
+  justify-items: center;
 }
 
 .cardQuizOption,
@@ -701,7 +1029,8 @@
   background: rgba(255, 255, 255, 0.04);
   color: #e0e0e0;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
+  width: 100%;
 }
 
 .cardQuizOptionCorrect {
@@ -733,8 +1062,9 @@
 .teacherMessage {
   margin-bottom: 20px;
   padding: 16px;
-  background: rgba(79, 195, 247, 0.1);
+  background: #f1fafe;
   border-left: 4px solid #4fc3f7;
+  border: 1px solid #caedfc;
   border-radius: 8px;
 }
 
@@ -742,26 +1072,26 @@
   font-size: 16px;
   font-weight: 600;
   margin: 0 0 8px 0;
-  color: #4fc3f7;
+  color: #0d47a1;
 }
 
 .teacherMessage p {
   margin: 0;
   line-height: 1.6;
-  color: #e0e0e0;
+  color: #111827;
 }
 
 .unitTitle {
   margin-bottom: 20px;
   padding-bottom: 12px;
-  border-bottom: 2px solid rgba(255, 107, 107, 0.3);
+  border-bottom: 2px solid #e0e0e0;
 }
 
 .unitTitle h4 {
   font-size: 18px;
   font-weight: 700;
   margin: 0;
-  color: #ff6b6b;
+  color: #2c3e50;
 }
 
 .conceptSummary {
@@ -787,21 +1117,27 @@
 .detailedContent {
   margin-bottom: 20px;
   padding: 16px;
-  background: rgba(242, 251, 244, 0.12);
-  border-left: 4px solid #66bb6a;
+  background: #f9f7fc;
+  border-left: 4px solid #7e57c2;
+  border: 1px solid #ece6f6;
   border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .detailedContent h5 {
   font-size: 16px;
   font-weight: 600;
   margin: 0 0 12px 0;
-  color: #ba68c8;
+  color: #7b1fa2;
+  background: #f3e5f5;
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
 }
 
 .detailedText {
   line-height: 1.8;
-  color: #e0e0e0;
+  color: #111827;
   font-size: 14px;
 }
 
@@ -813,12 +1149,31 @@
   margin-bottom: 0;
 }
 
+.sectionBlock {
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-weight: 700;
+  color: #111827;
+  margin: 6px 0 10px;
+  font-size: 14px;
+}
+
+.sectionVisualAids {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.25);
+}
+
 .textbookHighlight {
   margin-bottom: 20px;
   padding: 16px;
-  background: rgba(246, 240, 255, 0.12);
-  border-left: 4px solid #b39ddb;
+  background: #f9f7fc;
+  border-left: 4px solid #7e57c2;
+  border: 1px solid #ece6f6;
   border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .imageGrid {
@@ -858,35 +1213,196 @@
   font-size: 16px;
   font-weight: 600;
   margin: 0 0 8px 0;
-  color: #ffd54f;
+  color: #7b1fa2;
 }
 
 .textbookHighlight p {
   margin: 0;
   line-height: 1.6;
+  color: #111827;
+}
+
+.sttMatchSection {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 4px solid #4fc3f7;
+  border-radius: 8px;
+}
+
+.sttMatchSection h5 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 10px 0;
+  color: #4fc3f7;
+}
+
+.sttHint {
+  font-size: 12px;
+  color: #9aa4b2;
+  margin: 6px 0 12px;
+}
+
+.sttStats {
+  font-size: 12px;
+  color: #cfd8dc;
+  margin-bottom: 10px;
+}
+
+.sttTimeline {
+  margin-bottom: 12px;
+}
+
+.sttTimelineTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffd54f;
+  margin-bottom: 8px;
+}
+
+.sttTimelineList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.sttTimelineItem {
+  display: flex;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sttTimelineItem img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sttTimelineMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: #cfd8dc;
+}
+
+.sttTimelineMeta a {
+  color: #4fc3f7;
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.sttTimelineMeta a:hover {
+  text-decoration: underline;
+}
+
+.sttControls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.sttTableWrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.sttTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
   color: #e0e0e0;
+}
+
+.sttTable th,
+.sttTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  vertical-align: top;
+}
+
+.sttTable th {
+  text-align: left;
+  color: #b0bec5;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sttTime {
+  white-space: nowrap;
+  color: #ffd54f;
+}
+
+.sttSpeaker {
+  text-transform: uppercase;
+  font-size: 10px;
+  color: #90caf9;
+  white-space: nowrap;
+}
+
+.sttText {
+  min-width: 220px;
+  max-width: 520px;
+  line-height: 1.5;
+  color: #eceff1;
+}
+
+.sttImageCell {
+  width: 120px;
+}
+
+.sttImageCell img {
+  width: 96px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sttBadgeEmpty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: #ffcdd2;
+  background: rgba(239, 83, 80, 0.15);
+  border: 1px solid rgba(239, 83, 80, 0.4);
 }
 
 .missedParts {
   margin-bottom: 20px;
   padding: 16px;
-  background: rgba(255, 241, 243, 0.12);
-  border-left: 4px solid #ef9a9a;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  border: 1px solid #fde68a;
   border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .missedParts h5 {
   font-size: 16px;
   font-weight: 600;
   margin: 0 0 12px 0;
-  color: #ef5350;
+  color: #92400e;
 }
 
 .missedPartItem {
   margin-bottom: 16px;
   padding: 12px;
-  background: rgba(0, 0, 0, 0.2);
+  background: #ffffff;
   border-radius: 6px;
+  border: 1px solid #fde68a;
 }
 
 .missedPartItem:last-child {
@@ -895,28 +1411,28 @@
 
 .missedQuestion {
   margin: 0 0 8px 0;
-  color: #ffcdd2;
+  color: #92400e;
   line-height: 1.6;
 }
 
 .missedResponse {
   margin: 0 0 8px 0;
-  color: #ffcdd2;
+  color: #92400e;
   line-height: 1.6;
 }
 
 .missedAnswer {
   margin: 8px 0;
   padding: 8px;
-  background: rgba(76, 175, 80, 0.2);
+  background: #e8f5e9;
   border-radius: 4px;
-  color: #81c784;
+  color: #1b5e20;
   font-weight: 600;
 }
 
 .missedExplanation {
   margin: 8px 0 0 0;
-  color: #e0e0e0;
+  color: #111827;
   line-height: 1.6;
   font-size: 13px;
 }
@@ -946,11 +1462,12 @@
 .encouragement {
   margin-bottom: 16px;
   padding: 16px;
-  background: rgba(76, 175, 80, 0.1);
-  border: 1px solid rgba(76, 175, 80, 0.3);
+  background: #f1fafe;
+  border: 1px solid #caedfc;
+  border-left: 4px solid #4fc3f7;
   border-radius: 8px;
-  font-style: italic;
-  color: #81c784;
+  color: #111827;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .encouragement p {
@@ -961,9 +1478,9 @@
 .summaryMeta {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid #eeeeee;
   font-size: 12px;
-  color: #888;
+  color: #6b7280;
 }
 
 .metaRow {
@@ -974,7 +1491,7 @@
 }
 
 .metaRow strong {
-  color: #aaa;
+  color: #6b7280;
   min-width: 100px;
 }
 
@@ -1118,15 +1635,151 @@
 
   .phoneFrame {
     width: 100%;
+    max-width: 100%;
+    padding: 12px;
+    border-radius: 24px;
+  }
+
+  .phoneScreen {
+    padding: 16px 12px 12px;
+    min-height: 500px;
+    max-height: 700px;
+    --card-width: min(320px, 100% - 20px);
   }
 
   .cardItem {
-    min-width: 80vw;
-    max-width: 80vw;
+    padding: 16px;
   }
 
   .cardInner {
-    min-height: 240px;
+    min-height: 350px;
+    max-height: 450px;
+  }
+}
+
+/* 태블릿 스타일 (768px ~ 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .phoneFrame {
+    width: 500px;
+    max-width: 90%;
+  }
+
+  .phoneScreen {
+    padding: 24px 16px 20px;
+    min-height: 550px;
+    max-height: 750px;
+    --card-width: min(420px, 100% - 24px);
+  }
+
+  .cardItem {
+    padding: 20px;
+  }
+
+  .cardInner {
+    min-height: 400px;
+    max-height: 500px;
+  }
+
+  .cardBody {
+    font-size: 15px;
+  }
+}
+
+/* 카드뉴스 하단 액션 버튼 */
+.cardBottomAction {
+  padding: 20px 16px 16px;
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.3) 0%, transparent 100%);
+}
+
+.homeworkButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 
+    0 4px 12px rgba(79, 195, 247, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.homeworkButton::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.homeworkButton:hover::before {
+  left: 100%;
+}
+
+.homeworkButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 6px 16px rgba(79, 195, 247, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.homeworkButton:active {
+  transform: translateY(0);
+  box-shadow: 
+    0 2px 8px rgba(79, 195, 247, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.homeworkButtonIcon {
+  font-size: 24px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.homeworkButtonText {
+  flex: 1;
+  text-align: center;
+  letter-spacing: -0.3px;
+}
+
+.homeworkButtonArrow {
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 0.2s;
+}
+
+.homeworkButton:hover .homeworkButtonArrow {
+  transform: translateX(4px);
+}
+
+/* 태블릿에서 버튼 크기 조정 */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .homeworkButton {
+    padding: 20px 28px;
+    font-size: 18px;
+    border-radius: 18px;
+  }
+
+  .homeworkButtonIcon {
+    font-size: 26px;
   }
 }
 

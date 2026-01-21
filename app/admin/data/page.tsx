@@ -9,13 +9,29 @@ interface CollectionInfo {
   count: number;
 }
 
+interface CsvStatus {
+  exists: boolean;
+  path: string;
+  rowCount: number;
+  headers: string[];
+  mongoCount?: number;
+  updatedAt?: string;
+  missingColumns?: string[];
+}
+
 export default function AdminDataPage() {
   const [collections, setCollections] = useState<CollectionInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [csvStatus, setCsvStatus] = useState<CsvStatus | null>(null);
+  const [csvLoading, setCsvLoading] = useState(true);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     fetchData();
+    fetchCsvStatus();
   }, []);
 
   const fetchData = async () => {
@@ -95,6 +111,55 @@ export default function AdminDataPage() {
     }
   };
 
+  const fetchCsvStatus = async () => {
+    try {
+      setCsvLoading(true);
+      const res = await fetch('/api/admin/student-grade');
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'CSV 상태 조회 실패');
+      }
+      setCsvStatus(data);
+      setCsvError(null);
+    } catch (error: any) {
+      console.error('CSV 상태 로드 실패:', error);
+      setCsvError(error?.message || 'CSV 상태 로드 실패');
+    } finally {
+      setCsvLoading(false);
+    }
+  };
+
+  const uploadCsv = async () => {
+    if (!selectedFile) {
+      alert('CSV 파일을 선택해주세요.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const res = await fetch('/api/admin/student-grade', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'CSV 업로드 실패');
+      }
+
+      setCsvStatus(data);
+      setSelectedFile(null);
+      alert('CSV 업로드 완료!');
+    } catch (error: any) {
+      console.error('CSV 업로드 실패:', error);
+      alert(error?.message || 'CSV 업로드 실패');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const totalCount = collections.reduce((sum, c) => sum + c.count, 0);
 
   return (
@@ -134,6 +199,77 @@ export default function AdminDataPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* 학생 학년 매칭 CSV */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>🧾 학생 학년 매칭 CSV</h2>
+        <div className={styles.csvCard}>
+          {csvLoading ? (
+            <div className={styles.loading}>CSV 상태 확인 중...</div>
+          ) : csvError ? (
+            <div className={styles.csvError}>{csvError}</div>
+          ) : (
+            <>
+              <div className={styles.csvInfo}>
+                <div>
+                  <div className={styles.csvLabel}>파일 상태</div>
+                  <div className={styles.csvValue}>
+                    {csvStatus?.exists ? '업로드됨' : '없음'}
+                  </div>
+                </div>
+                <div>
+                  <div className={styles.csvLabel}>MongoDB 저장</div>
+                  <div className={styles.csvValue}>
+                    {csvStatus?.mongoCount?.toLocaleString() || 0}건
+                  </div>
+                </div>
+                <div>
+                  <div className={styles.csvLabel}>경로</div>
+                  <div className={styles.csvPath}>{csvStatus?.path || '-'}</div>
+                </div>
+                <div>
+                  <div className={styles.csvLabel}>행 개수</div>
+                  <div className={styles.csvValue}>
+                    {csvStatus?.rowCount?.toLocaleString() || 0}행
+                  </div>
+                </div>
+                <div>
+                  <div className={styles.csvLabel}>업데이트</div>
+                  <div className={styles.csvValue}>
+                    {csvStatus?.updatedAt
+                      ? new Date(csvStatus.updatedAt).toLocaleString('ko-KR')
+                      : '-'}
+                  </div>
+                </div>
+              </div>
+              {csvStatus?.missingColumns?.length ? (
+                <div className={styles.csvWarn}>
+                  필수 컬럼 누락: {csvStatus.missingColumns.join(', ')}
+                </div>
+              ) : null}
+              <div className={styles.csvHint}>
+                CSV는 서버 파일로 저장되고, 내용은 MongoDB에 동기화됩니다.
+              </div>
+            </>
+          )}
+
+          <div className={styles.csvUpload}>
+            <input
+              type="file"
+              accept=".csv"
+              className={styles.csvInput}
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            />
+            <button
+              className={styles.csvUploadBtn}
+              onClick={uploadCsv}
+              disabled={uploading || !selectedFile}
+            >
+              {uploading ? '업로드 중...' : 'CSV 업로드'}
+            </button>
+          </div>
+        </div>
       </section>
 
       {/* 위험 구역 */}

@@ -4,9 +4,20 @@ import { useState } from 'react';
 import Link from 'next/link';
 import styles from './page.module.css';
 
+interface MappedItem {
+  imageUrl: string;
+  timestamp: number;
+  texts: Array<{
+    speaker: string;
+    text: string;
+    timestamp: number;
+  }>;
+}
+
 interface ImageData {
   url: string;
   index: number;
+  mappedItem?: MappedItem; // 매핑된 데이터 (전체보기용)
 }
 
 export default function RoomImagesPage() {
@@ -15,6 +26,7 @@ export default function RoomImagesPage() {
   const [images, setImages] = useState<ImageData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
+  const [showMappedData, setShowMappedData] = useState(false); // 전체보기 모드
 
   const handleSearch = async () => {
     if (!roomId.trim()) {
@@ -26,6 +38,7 @@ export default function RoomImagesPage() {
     setError(null);
     setImages([]);
     setCurrentRoomId(null);
+    setShowMappedData(false);
 
     try {
       const res = await fetch('/api/admin/room-images', {
@@ -42,15 +55,31 @@ export default function RoomImagesPage() {
         throw new Error(data.error || '이미지를 가져오는데 실패했습니다.');
       }
 
-      if (!data.urls || data.urls.length === 0) {
+      // uniqueImages는 중복 제거된 이미지 목록
+      // mappedItems는 타임스탬프로 매핑된 전체 데이터
+      const { uniqueImages, mappedItems } = data;
+
+      if (!uniqueImages || uniqueImages.length === 0) {
         setError('해당 룸아이디에서 이미지를 찾을 수 없습니다.');
         return;
       }
 
+      // 이미지 URL을 키로 하는 매핑 맵 생성 (빠른 조회용)
+      const mappedMap = new Map<string, MappedItem>();
+      if (mappedItems && Array.isArray(mappedItems)) {
+        for (const item of mappedItems) {
+          if (!mappedMap.has(item.imageUrl)) {
+            mappedMap.set(item.imageUrl, item);
+          }
+        }
+      }
+
+      // uniqueImages를 기반으로 이미지 데이터 생성
       setImages(
-        data.urls.map((url: string, index: number) => ({
+        uniqueImages.map((url: string, index: number) => ({
           url,
           index: index + 1,
+          mappedItem: mappedMap.get(url), // 매핑된 데이터 연결
         }))
       );
       setCurrentRoomId(data.roomId);
@@ -116,7 +145,15 @@ export default function RoomImagesPage() {
             <h2 className={styles.resultTitle}>
               룸아이디: <code className={styles.roomIdCode}>{currentRoomId}</code>
             </h2>
-            <p className={styles.resultCount}>총 {images.length}개의 이미지</p>
+            <div className={styles.resultHeaderActions}>
+              <p className={styles.resultCount}>총 {images.length}개의 이미지</p>
+              <button
+                onClick={() => setShowMappedData(!showMappedData)}
+                className={styles.toggleButton}
+              >
+                {showMappedData ? '간단보기' : '전체보기 (매핑 데이터)'}
+              </button>
+            </div>
           </div>
 
           {images.length > 0 && (
@@ -154,7 +191,9 @@ export default function RoomImagesPage() {
                       `;
                       modal.appendChild(img);
                       const closeHandler = () => {
-                        document.body.removeChild(modal);
+                        if (modal.parentNode === document.body) {
+                          document.body.removeChild(modal);
+                        }
                       };
                       modal.onclick = closeHandler;
                       img.onclick = (e) => e.stopPropagation();
@@ -165,6 +204,48 @@ export default function RoomImagesPage() {
                       (e.target as HTMLImageElement).src = '/placeholder-image.png';
                     }}
                   />
+                  
+                  {/* 전체보기 모드: 매핑된 텍스트 표시 */}
+                  {showMappedData && image.mappedItem && (
+                    <div className={styles.mappedData}>
+                      <div className={styles.mappedHeader}>
+                        <span className={styles.timestamp}>
+                          타임스탬프: {new Date(image.mappedItem.timestamp * 1000).toLocaleString('ko-KR')}
+                        </span>
+                        <span className={styles.textCount}>
+                          텍스트 {image.mappedItem.texts.length}개
+                        </span>
+                      </div>
+                      {image.mappedItem.texts.length > 0 ? (
+                        <div className={styles.textList}>
+                          {image.mappedItem.texts.slice(0, 3).map((text, idx) => (
+                            <div key={idx} className={styles.textItem}>
+                              <span className={styles.speaker}>
+                                {text.speaker === 'teacher' ? '👨‍🏫 선생님' : '👨‍🎓 학생'}:
+                              </span>
+                              <span className={styles.text}>{text.text}</span>
+                            </div>
+                          ))}
+                      {image.mappedItem.texts.length > 3 && (
+                        <details className={styles.textMore}>
+                          <summary>외 {image.mappedItem.texts.length - 3}개 더 보기</summary>
+                          {image.mappedItem.texts.slice(3).map((text, idx) => (
+                            <div key={`more-${idx}`} className={styles.textItem}>
+                              <span className={styles.speaker}>
+                                {text.speaker === 'teacher' ? '👨‍🏫 선생님' : '👨‍🎓 학생'}:
+                              </span>
+                              <span className={styles.text}>{text.text}</span>
+                            </div>
+                          ))}
+                        </details>
+                      )}
+                        </div>
+                      ) : (
+                        <div className={styles.noText}>매핑된 텍스트 없음</div>
+                      )}
+                    </div>
+                  )}
+
                   <div className={styles.imageUrl}>
                     <a
                       href={image.url}

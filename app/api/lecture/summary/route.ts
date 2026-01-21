@@ -3,10 +3,13 @@ import fs from 'fs/promises';
 import path from 'path';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { Collections } from '@/lib/db';
-import { loadCorrectAndParseStt, type Conversation } from '@/lib/stt-utils';
+import { loadCorrectAndParseStt, parseSttData, preprocessSttText, type Conversation } from '@/lib/stt-utils';
 import { getSubjectGuide } from '@/lib/prompts/subjectPrompts';
 import { buildSummaryPrompt } from '@/lib/prompts/summaryPrompt';
 import { buildCurriculumHint, buildCurriculumReference } from '@/lib/curriculum/matchCurriculum';
+import { splitConversationsIntoSections, getSectionSttText, type Section } from '@/lib/section-splitter';
+import { getGradeByUserNo } from '@/lib/student-grade-matcher';
+import { getKSTYear, getCurrentKSTYear, formatKSTDate } from '@/lib/time-utils';
 
 // Lecture Analysis Pipeline API Base URL
 const LECTURE_API_BASE_URL = 
@@ -110,6 +113,7 @@ type SummaryCacheData = {
   images: string[];
   sttImageRefs: string[];
   imagesToUse: string[];
+  imageTimeline?: Array<{ start: number; end: number; src: string }>;
   cachedPrompt?: string | null;
 };
 
@@ -124,6 +128,117 @@ async function loadSummaryCache(roomId: string): Promise<SummaryCacheData | null
     return parsed as SummaryCacheData;
   } catch {
     return null;
+  }
+}
+
+async function fetchImageTimeline(roomId: string): Promise<{
+  images: string[];
+  timeline: Array<{ start: number; end: number; src: string }>;
+}> {
+  try {
+    const res = await fetch(
+      `${LECTURE_API_BASE_URL}/image/${roomId}`,
+      { headers: { accept: 'application/json' } }
+    );
+    if (!res.ok) {
+      return { images: [], timeline: [] };
+    }
+    const data = await res.json();
+    if (!data?.presigned_url) {
+      return { images: [], timeline: [] };
+    }
+
+    const timelineRes = await fetch(data.presigned_url);
+    if (!timelineRes.ok) {
+      return { images: [], timeline: [] };
+    }
+    const timelineData = await timelineRes.json();
+    if (!Array.isArray(timelineData)) {
+      return { images: [], timeline: [] };
+    }
+
+    const timeline = timelineData
+      .filter((item: any) => item && item.src && Number.isFinite(item.start) && Number.isFinite(item.end))
+      .map((item: any) => ({
+        start: Number(item.start),
+        end: Number(item.end),
+        src: String(item.src),
+      }))
+      .sort((a, b) => a.start - b.start);
+
+    const images: string[] = [];
+    const seen = new Set<string>();
+    for (const item of timeline) {
+      if (!seen.has(item.src)) {
+        images.push(item.src);
+        seen.add(item.src);
+      }
+    }
+
+    return { images, timeline };
+  } catch {
+    return { images: [], timeline: [] };
+  }
+}
+
+async function fetchTextTimeline(roomId: string): Promise<Conversation[]> {
+  try {
+    const res = await fetch(
+      `${LECTURE_API_BASE_URL}/text/${roomId}`,
+      { headers: { accept: 'application/json' } }
+    );
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    const presignedUrl = data?.presigned_url;
+
+    if (presignedUrl) {
+      const textRes = await fetch(presignedUrl);
+      if (!textRes.ok) {
+        return [];
+      }
+      const rawText = preprocessSttText(await textRes.text());
+      const jsonData = JSON.parse(rawText);
+      if (Array.isArray(jsonData)) {
+        return jsonData
+          .map((conv: any) => {
+            let speaker = 'unknown';
+            let text = '';
+            if (conv.user === 'teacher' || conv.user === 'T' || conv.speaker === 'teacher') {
+              speaker = 'teacher';
+              text = conv.teacher_text || conv.text || conv.content || conv.transcript || '';
+            } else if (conv.user === 'student' || conv.user === 'S' || conv.speaker === 'student') {
+              speaker = 'student';
+              text = conv.student_text || conv.text || conv.content || conv.transcript || '';
+            } else {
+              speaker = conv.speaker || conv.role || 'unknown';
+              text = conv.text || conv.content || conv.transcript || '';
+            }
+
+            const timestamp =
+              typeof conv.start === 'number'
+                ? conv.start
+                : typeof conv.start_time === 'number'
+                ? conv.start_time
+                : typeof conv.startTime === 'number'
+                ? conv.startTime
+                : conv.timestamp || conv.time || null;
+
+            return { speaker, text, timestamp };
+          })
+          .filter((conv: Conversation) => conv.text && conv.text.trim().length > 0);
+      }
+      return parseSttData(jsonData);
+    }
+
+    if (Array.isArray(data) || (data && typeof data === 'object')) {
+      return parseSttData(data);
+    }
+
+    return [];
+  } catch {
+    return [];
   }
 }
 
@@ -170,7 +285,7 @@ async function downloadAndConvertImage(imageUrl: string): Promise<{ buffer: Buff
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { roomId, grade, testMode, forcePromptRefresh } = body;
+    const { roomId, grade, testMode, forcePromptRefresh, useSectionMode } = body;
 
     if (!roomId) {
       return NextResponse.json(
@@ -201,10 +316,13 @@ export async function POST(req: NextRequest) {
     let studentId: string | null = null;
     let studentName: string | null = null;
     let studentNickname: string | null = null;
+    let autoGrade: string | null = null;
     let sttText: string | null = null;
     let missedParts: Array<{ question: string; studentResponse?: string; correctAnswer?: string; explanation?: string }> = [];
     let fullConversation: Conversation[] = [];
+    let reportTextTimeline: Conversation[] = [];
     let images: string[] = [];
+    let imageTimeline: Array<{ start: number; end: number; src: string }> = [];
     let sttImageRefs: string[] = [];
     let imagesToUse: string[] = [];
     let usedCache = false;
@@ -223,6 +341,7 @@ export async function POST(req: NextRequest) {
         fullConversation = cached.fullConversation || [];
         missedParts = cached.missedParts || [];
         images = cached.images || [];
+        imageTimeline = cached.imageTimeline || [];
         sttImageRefs = cached.sttImageRefs || [];
         imagesToUse = cached.imagesToUse || [];
         cachedPrompt = cached.cachedPrompt || null;
@@ -234,225 +353,439 @@ export async function POST(req: NextRequest) {
     }
 
     if (!usedCache) {
-      const [roomMetaRes, sttPromise, imagesPromise, studentInfoPromise] = await Promise.allSettled([
-      // 1. Room 메타데이터
-      fetch(`${LECTURE_API_BASE_URL}/meta/room/${roomId}`, {
-        headers: { 'Content-Type': 'application/json' },
-      }),
-      // 2. STT 텍스트 가져오기 및 보정 (공통 유틸리티 사용)
-      loadCorrectAndParseStt(roomId, LECTURE_API_BASE_URL, apiKey),
-      // 3. 교재 이미지 가져오기
-      (async () => {
-        try {
-          const baseUrl = req.nextUrl.origin;
-          const imagesRes = await fetch(`${baseUrl}/api/admin/room-images`, {
-            method: 'POST',
+      const [roomMetaRes, sttPromise, imagesPromise, studentInfoPromise, textTimelinePromise] =
+        await Promise.allSettled([
+          // 1. Room 메타데이터
+          fetch(`${LECTURE_API_BASE_URL}/meta/room/${roomId}`, {
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ roomId }),
-          });
-          if (imagesRes.ok) {
-            const imagesData = await imagesRes.json();
-            return imagesData.urls && Array.isArray(imagesData.urls) ? imagesData.urls : [];
-          }
-          return [];
-        } catch {
-          return [];
-        }
-      })(),
-      // 4. 학생 정보 (Pagecall API)
-      (async () => {
-        try {
-          const pagecallToken = process.env.PAGECALL_API_TOKEN;
-          if (!pagecallToken) {
-            console.warn('[lecture/summary] ⚠️ PAGECALL_API_TOKEN이 설정되지 않았습니다.');
-            return { studentId: null, studentName: null, studentNickname: null };
-          }
-          
-          if (isDevelopment) {
-            console.log(`[lecture/summary] 🔍 Pagecall API 호출 시작: rooms/${roomId}/sessions`);
-          }
-          
-          const sessionsRes = await fetch(`https://api.pagecall.com/v1/rooms/${roomId}/sessions`, {
-            headers: {
-              'Authorization': `Bearer ${pagecallToken}`,
-              'Content-Type': 'application/json',
-            },
-          });
+          }),
+          // 2. STT 텍스트 가져오기 및 보정 (공통 유틸리티 사용)
+          loadCorrectAndParseStt(roomId, LECTURE_API_BASE_URL, apiKey),
+          // 3. 교재 이미지 가져오기 (image API 우선)
+          (async () => {
+            try {
+              const timelineResult = await fetchImageTimeline(roomId);
+              if (timelineResult.images.length > 0) {
+                return timelineResult;
+              }
 
-          if (!sessionsRes.ok) {
-            console.warn(`[lecture/summary] ⚠️ Pagecall API 호출 실패: ${sessionsRes.status} ${sessionsRes.statusText}`);
-            return { studentId: null, studentName: null, studentNickname: null };
-          }
+              const baseUrl = req.nextUrl.origin;
+              const imagesRes = await fetch(`${baseUrl}/api/admin/room-images`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roomId }),
+              });
+              if (imagesRes.ok) {
+                const imagesData = await imagesRes.json();
+                const urls = imagesData.urls && Array.isArray(imagesData.urls) ? imagesData.urls : [];
+                return { images: urls, timeline: [] };
+              }
+              return { images: [], timeline: [] };
+            } catch {
+              return { images: [], timeline: [] };
+            }
+          })(),
+          // 4. 학생 정보 (Pagecall API) + 수업 년도 확인
+          (async () => {
+            try {
+              const pagecallToken = process.env.PAGECALL_API_TOKEN;
+              if (!pagecallToken) {
+                console.warn('[lecture/summary] ⚠️ PAGECALL_API_TOKEN이 설정되지 않았습니다.');
+                return { studentId: null, studentName: null, studentNickname: null, sessionYear: null };
+              }
 
-          const sessionsData = await sessionsRes.json();
-          
-          if (isDevelopment) {
-            console.log(`[lecture/summary] 📊 Pagecall API 응답:`, {
-              ok: sessionsData.ok,
-              sessionsCount: sessionsData.sessions?.length || 0,
-            });
-          }
-          
-          if (sessionsData.sessions && Array.isArray(sessionsData.sessions)) {
-            for (const session of sessionsData.sessions) {
-              if (session.user_id && typeof session.user_id === 'string') {
-                if (isDevelopment) {
-                  console.log(`[lecture/summary] 🔍 세션 user_id 확인:`, session.user_id);
-                }
-                
-                // 패턴 매칭: "이름(S_숫자)" 형식
-                const fullMatch = session.user_id.match(/^(.+?)\(S_(\d+)\)$/);
-                if (fullMatch) {
-                  const studentName = fullMatch[1].trim();
-                  const studentId = fullMatch[2];
-                  const studentNickname = studentName && studentName.length >= 2 
-                    ? studentName.slice(-2) 
-                    : studentName;
-                  
-                  console.log(`[lecture/summary] ✅ 학생 정보 발견: ${studentName} (ID: ${studentId}, 닉네임: ${studentNickname})`);
-                  return { studentId, studentName, studentNickname };
-                } else {
-                  // 다른 형식도 시도: "S_숫자"만 있는 경우
-                  const simpleMatch = session.user_id.match(/S_(\d+)/);
-                  if (simpleMatch) {
-                    const studentId = simpleMatch[1];
-                    console.log(`[lecture/summary] ✅ 학생 ID 발견 (이름 없음): ${studentId}`);
-                    return { studentId, studentName: null, studentNickname: null };
+              if (isDevelopment) {
+                console.log(`[lecture/summary] 🔍 Pagecall API 호출 시작: rooms/${roomId}/sessions`);
+              }
+
+              const sessionsRes = await fetch(`https://api.pagecall.com/v1/rooms/${roomId}/sessions`, {
+                headers: {
+                  'Authorization': `Bearer ${pagecallToken}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (!sessionsRes.ok) {
+                console.warn(`[lecture/summary] ⚠️ Pagecall API 호출 실패: ${sessionsRes.status} ${sessionsRes.statusText}`);
+                return { studentId: null, studentName: null, studentNickname: null, sessionYear: null };
+              }
+
+              const sessionsData = await sessionsRes.json();
+
+              // 수업 년도 추출 (connected_at 또는 disconnected_at 기준, KST 기준)
+              let sessionYear: number | null = null;
+              if (sessionsData.sessions && Array.isArray(sessionsData.sessions) && sessionsData.sessions.length > 0) {
+                // 첫 번째 세션의 connected_at 또는 disconnected_at 사용
+                const firstSession = sessionsData.sessions[0];
+                const dateStr = firstSession.connected_at || firstSession.disconnected_at;
+                if (dateStr) {
+                  // KST 기준으로 년도 추출
+                  sessionYear = getKSTYear(dateStr);
+                  if (isDevelopment) {
+                    console.log(`[lecture/summary] 📅 수업 년도 추출 (KST 기준): ${sessionYear}년 (${dateStr} → ${formatKSTDate(dateStr)})`);
                   }
                 }
               }
-            }
-            
-            if (isDevelopment) {
-              console.warn(`[lecture/summary] ⚠️ 학생 정보를 찾을 수 없습니다. 세션 수: ${sessionsData.sessions.length}`);
-              console.log(`[lecture/summary] 세션 user_id 목록:`, sessionsData.sessions.map((s: any) => s.user_id));
-            }
-          }
-          
-          return { studentId: null, studentName: null, studentNickname: null };
-        } catch (err: any) {
-          console.error('[lecture/summary] ❌ Pagecall API 호출 중 오류:', err?.message || err);
-          return { studentId: null, studentName: null, studentNickname: null };
-        }
-      })(),
-    ]);
 
-    // Room 메타데이터 처리
-    if (roomMetaRes.status === 'rejected' || !roomMetaRes.value.ok) {
-      return NextResponse.json(
-        { error: 'Room을 찾을 수 없습니다.' },
-        { status: 404 }
-      );
-    }
-    const roomMeta = await roomMetaRes.value.json();
-    subject = roomMeta.subject || '미분류';
-    tutoringDatetime = roomMeta.tutoring_datetime || null;
-
-    // 학생 정보 처리
-    if (studentInfoPromise.status === 'fulfilled') {
-      const studentInfo = studentInfoPromise.value;
-      studentId = studentInfo.studentId;
-      studentName = studentInfo.studentName;
-      studentNickname = studentInfo.studentNickname;
-      
-      if (isDevelopment) {
-        console.log(`[lecture/summary] 📋 학생 정보 최종 결과:`, {
-          studentId: studentId || 'null',
-          studentName: studentName || 'null',
-          studentNickname: studentNickname || 'null',
-        });
-      }
-    } else {
-      console.error('[lecture/summary] ❌ 학생 정보 로드 실패:', studentInfoPromise.reason);
-    }
-
-    // STT 처리 (병렬로 이미 로드됨)
-    if (sttPromise.status === 'fulfilled') {
-      fullConversation = sttPromise.value;
-      
-      if (fullConversation.length > 0) {
-        // 보정된 STT 텍스트 생성
-        sttText = fullConversation
-          .map((conv) => `[${conv.speaker}]: ${conv.text}`)
-          .join('\n');
-
-        // 학생 질문 추출 (꼽주지 않고, 궁금했던 내용 정리)
-        missedParts = [];
-        const isStudent = (speaker?: string) =>
-          speaker === 'student' || speaker === '학생' || speaker?.includes('student') || speaker?.includes('학생');
-        const isTeacher = (speaker?: string) =>
-          speaker === 'teacher' || speaker === '선생님' || speaker?.includes('teacher') || speaker?.includes('선생');
-        const looksLikeQuestion = (text: string) => {
-          const t = text.toLowerCase();
-          return (
-            t.includes('?') ||
-            t.includes('어떻게') ||
-            t.includes('왜') ||
-            t.includes('뭐야') ||
-            t.includes('뭐예요') ||
-            t.includes('뭔가요') ||
-            t.includes('무슨') ||
-            t.includes('어떤') ||
-            t.includes('언제') ||
-            t.includes('어디') ||
-            t.includes('몇') ||
-            t.includes('가능해') ||
-            t.includes('되나요') ||
-            t.includes('모르겠')
-          );
-        };
-
-        for (let i = 0; i < fullConversation.length; i++) {
-          const current = fullConversation[i];
-          if (isStudent(current.speaker) && looksLikeQuestion(current.text)) {
-            let teacherReply = '';
-            for (let j = i + 1; j < fullConversation.length; j++) {
-              if (isTeacher(fullConversation[j].speaker)) {
-                teacherReply = fullConversation[j].text;
-                break;
+              if (isDevelopment) {
+                console.log(`[lecture/summary] 📊 Pagecall API 응답:`, {
+                  ok: sessionsData.ok,
+                  sessionsCount: sessionsData.sessions?.length || 0,
+                  sessionYear,
+                });
               }
+
+              if (sessionsData.sessions && Array.isArray(sessionsData.sessions)) {
+                // 먼저 학생(S_) 세션 찾기, 없으면 선생님(T_) 세션 확인
+                let studentSession: any = null;
+                let teacherSession: any = null;
+
+                for (const session of sessionsData.sessions) {
+                  if (session.user_id && typeof session.user_id === 'string') {
+                    if (isDevelopment) {
+                      console.log(`[lecture/summary] 🔍 세션 user_id 확인:`, session.user_id);
+                    }
+
+                    // 학생 세션 찾기: "이름(S_숫자)" 형식
+                    const studentMatch = session.user_id.match(/^(.+?)\(S_(\d+)\)$/);
+                    if (studentMatch && !studentSession) {
+                      studentSession = {
+                        name: studentMatch[1].trim(),
+                        id: studentMatch[2],
+                        session,
+                      };
+                    } else if (!studentMatch) {
+                      // "S_숫자"만 있는 경우도 확인
+                      const simpleStudentMatch = session.user_id.match(/S_(\d+)/);
+                      if (simpleStudentMatch && !studentSession) {
+                        studentSession = {
+                          name: null,
+                          id: simpleStudentMatch[1],
+                          session,
+                        };
+                      }
+                    }
+
+                    // 선생님 세션도 기록 (학생이 없을 때 참고용)
+                    if (session.user_id.includes('(T_') && !teacherSession) {
+                      const teacherMatch = session.user_id.match(/^(.+?)\(T_(\d+)\)$/);
+                      if (teacherMatch) {
+                        teacherSession = {
+                          name: teacherMatch[1].trim(),
+                          id: teacherMatch[2],
+                          session,
+                        };
+                      }
+                    }
+                  }
+                }
+
+                // 학생 세션 발견
+                if (studentSession) {
+                  const studentNickname = studentSession.name && studentSession.name.length >= 2
+                    ? studentSession.name.slice(-2)
+                    : studentSession.name;
+
+                  console.log(`[lecture/summary] ✅ 학생 정보 발견: ${studentSession.name || '(이름 없음)'} (ID: ${studentSession.id}, 닉네임: ${studentNickname})`);
+                  return {
+                    studentId: studentSession.id,
+                    studentName: studentSession.name,
+                    studentNickname: studentNickname || null,
+                    sessionYear,
+                  };
+                }
+
+                // 학생이 없고 선생님만 있는 경우 로그
+                if (teacherSession && isDevelopment) {
+                  console.log(`[lecture/summary] ℹ️ 학생 세션이 없고 선생님만 있음: ${teacherSession.name}(T_${teacherSession.id})`);
+                }
+
+                if (isDevelopment) {
+                  console.warn(`[lecture/summary] ⚠️ 학생 정보를 찾을 수 없습니다. 세션 수: ${sessionsData.sessions.length}`);
+                  console.log(`[lecture/summary] 세션 user_id 목록:`, sessionsData.sessions.map((s: any) => s.user_id));
+                }
+              }
+
+              return { studentId: null, studentName: null, studentNickname: null, sessionYear };
+            } catch (err: any) {
+              console.error('[lecture/summary] ❌ Pagecall API 호출 중 오류:', err?.message || err);
+              return { studentId: null, studentName: null, studentNickname: null, sessionYear: null };
             }
-            missedParts.push({
-              question: current.text,
-              explanation: teacherReply,
-            });
+          })(),
+          // 5. report-backend text (image 매칭용 fallback)
+          fetchTextTimeline(roomId),
+        ]);
+
+      // Room 메타데이터 처리
+      if (roomMetaRes.status === 'rejected' || !roomMetaRes.value.ok) {
+        return NextResponse.json(
+          { error: 'Room을 찾을 수 없습니다.' },
+          { status: 404 }
+        );
+      }
+      const roomMeta = await roomMetaRes.value.json();
+      subject = roomMeta.subject || '미분류';
+      tutoringDatetime = roomMeta.tutoring_datetime || null;
+
+      // 학생 정보 처리
+      let sessionYear: number | null = null;
+      if (studentInfoPromise.status === 'fulfilled') {
+        const studentInfo = studentInfoPromise.value;
+        studentId = studentInfo.studentId;
+        studentName = studentInfo.studentName;
+        studentNickname = studentInfo.studentNickname;
+        sessionYear = studentInfo.sessionYear || null;
+
+        // 유저 번호로 학년 자동 조회 (수업 년도 고려)
+        if (studentId) {
+          autoGrade = await getGradeByUserNo(studentId, sessionYear);
+          if (autoGrade && isDevelopment) {
+            console.log(`[lecture/summary] ✅ 학년 자동 매칭: ${studentId} → ${autoGrade}${sessionYear ? ` (수업 년도: ${sessionYear}년)` : ''}`);
           }
         }
+
+        if (isDevelopment) {
+          console.log(`[lecture/summary] 📋 학생 정보 최종 결과:`, {
+            studentId: studentId || 'null',
+            studentName: studentName || 'null',
+            studentNickname: studentNickname || 'null',
+          });
+        }
+      } else {
+        console.error('[lecture/summary] ❌ 학생 정보 로드 실패:', studentInfoPromise.reason);
       }
-    } else {
-      if (isDevelopment) {
+
+      // STT 처리 (병렬로 이미 로드됨)
+      if (sttPromise.status === 'fulfilled') {
+        fullConversation = sttPromise.value;
+
+        if (fullConversation.length > 0) {
+          // 보정된 STT 텍스트 생성
+          sttText = fullConversation
+            .map((conv) => `[${conv.speaker}]: ${conv.text}`)
+            .join('\n');
+
+          // 학생 질문 추출 (꼽주지 않고, 궁금했던 내용 정리)
+          missedParts = [];
+          const isStudent = (speaker?: string) =>
+            speaker === 'student' || speaker === '학생' || speaker?.includes('student') || speaker?.includes('학생');
+          const isTeacher = (speaker?: string) =>
+            speaker === 'teacher' || speaker === '선생님' || speaker?.includes('teacher') || speaker?.includes('선생');
+          const looksLikeQuestion = (text: string) => {
+            const t = text.toLowerCase();
+            return (
+              t.includes('?') ||
+              t.includes('어떻게') ||
+              t.includes('왜') ||
+              t.includes('뭐야') ||
+              t.includes('뭐예요') ||
+              t.includes('뭔가요') ||
+              t.includes('무슨') ||
+              t.includes('어떤') ||
+              t.includes('언제') ||
+              t.includes('어디') ||
+              t.includes('몇') ||
+              t.includes('가능해') ||
+              t.includes('되나요') ||
+              t.includes('모르겠')
+            );
+          };
+
+          for (let i = 0; i < fullConversation.length; i++) {
+            const current = fullConversation[i];
+            if (isStudent(current.speaker) && looksLikeQuestion(current.text)) {
+              let teacherReply = '';
+              for (let j = i + 1; j < fullConversation.length; j++) {
+                if (isTeacher(fullConversation[j].speaker)) {
+                  teacherReply = fullConversation[j].text;
+                  break;
+                }
+              }
+              missedParts.push({
+                question: current.text,
+                explanation: teacherReply,
+              });
+            }
+          }
+        }
+      } else if (isDevelopment) {
         console.error('[lecture/summary] STT 텍스트 로드 실패:', sttPromise.reason);
       }
-    }
 
-    // 이미지 처리 (병렬로 이미 로드됨)
-    images = imagesPromise.status === 'fulfilled' ? imagesPromise.value : [];
-    sttImageRefs = [];
-    
-    if (sttText && fullConversation) {
-      sttImageRefs = fullConversation
-        .map((conv) => conv.imageRef)
-        .filter((ref): ref is string => !!ref && typeof ref === 'string');
-      
-      if (isDevelopment) {
-        console.log(`[lecture/summary] 📸 STT에서 발견된 이미지 참조: ${sttImageRefs.length}개`);
+      if (textTimelinePromise.status === 'fulfilled') {
+        reportTextTimeline = textTimelinePromise.value || [];
+      } else {
+        reportTextTimeline = [];
       }
-    }
-    
-    // STT 이미지 참조 우선 처리
-    if (sttImageRefs.length > 0 && images.length > 0) {
-      const sttImages = sttImageRefs
-        .map((ref: string) => images.find((url: string) => url.includes(ref) || ref.includes(url.split('/').pop() || '')))
-        .filter((url): url is string => !!url);
-      
-      const remainingImages = images.filter((url: string) => !sttImages.includes(url));
-      images = [...sttImages, ...remainingImages];
-      
-      if (isDevelopment) {
-        console.log(`[lecture/summary] 📸 STT에서 활용된 이미지 ${images.length}개 사용 (STT 참조: ${sttImageRefs.length}개)`);
+
+      // 이미지 처리 (병렬로 이미 로드됨)
+      if (imagesPromise.status === 'fulfilled') {
+        images = Array.isArray(imagesPromise.value?.images) ? imagesPromise.value.images : [];
+        imageTimeline = Array.isArray(imagesPromise.value?.timeline) ? imagesPromise.value.timeline : [];
+      } else {
+        images = [];
+        imageTimeline = [];
       }
-    } else if (images.length > 0 && isDevelopment) {
-      console.log(`[lecture/summary] 📸 교재 이미지 ${images.length}개 발견 (STT 참조 없음, 전체 사용)`);
+      sttImageRefs = [];
+
+      if (imageTimeline.length > 0 && fullConversation.length > 0) {
+        const parseDurationSeconds = (value: string): number | null => {
+          let text = value.trim();
+          if (!text) return null;
+          if (text.includes('~')) {
+            text = text.split('~')[0]?.trim() || '';
+          }
+
+          const colonMatch = text.match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
+          if (colonMatch) {
+            const hours = colonMatch[1] ? Number(colonMatch[1]) : 0;
+            const minutes = Number(colonMatch[2]);
+            const seconds = Number(colonMatch[3]);
+            if ([hours, minutes, seconds].every((n) => Number.isFinite(n))) {
+              return hours * 3600 + minutes * 60 + seconds;
+            }
+          }
+
+          const hmsMatch = text.match(/^(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+(?:\.\d+)?)\s*m)?\s*(\d+(?:\.\d+)?)\s*s?$/i);
+          if (hmsMatch) {
+            const hours = hmsMatch[1] ? Number(hmsMatch[1]) : 0;
+            const minutes = hmsMatch[2] ? Number(hmsMatch[2]) : 0;
+            const seconds = Number(hmsMatch[3]);
+            if ([hours, minutes, seconds].every((n) => Number.isFinite(n))) {
+              return hours * 3600 + minutes * 60 + seconds;
+            }
+          }
+
+          return null;
+        };
+
+        const normalizeSeconds = (value: unknown): number | null => {
+          if (value === null || value === undefined) return null;
+          if (typeof value === 'string') {
+            const asNumber = Number(value);
+            if (Number.isFinite(asNumber)) {
+              return asNumber > 100000 ? asNumber / 1000 : asNumber;
+            }
+            const durationSeconds = parseDurationSeconds(value);
+            if (typeof durationSeconds === 'number') return durationSeconds;
+            const parsed = Date.parse(value);
+            if (!Number.isNaN(parsed)) return parsed / 1000;
+            return null;
+          }
+          if (typeof value === 'number') {
+            if (!Number.isFinite(value)) return null;
+            return value > 100000 ? value / 1000 : value;
+          }
+          return null;
+        };
+
+        const timelineSeconds = imageTimeline
+          .map((item) => ({
+            start: normalizeSeconds(item.start),
+            end: normalizeSeconds(item.end),
+            src: item.src,
+          }))
+          .filter((item): item is { start: number; end: number; src: string } =>
+            typeof item.start === 'number' &&
+            typeof item.end === 'number' &&
+            item.start <= item.end
+          )
+          .sort((a, b) => a.start - b.start);
+
+        const sttTimes = fullConversation
+          .map((conv) => normalizeSeconds(conv.timestamp))
+          .filter((time): time is number => typeof time === 'number');
+
+        const timelineMin = timelineSeconds.length > 0 ? timelineSeconds[0].start : null;
+        const timelineMax = timelineSeconds.length > 0 ? timelineSeconds[timelineSeconds.length - 1].end : null;
+        const sttMin = sttTimes.length > 0 ? Math.min(...sttTimes) : null;
+        const sttMax = sttTimes.length > 0 ? Math.max(...sttTimes) : null;
+
+        const hasDirectOverlap =
+          typeof timelineMin === 'number' &&
+          typeof timelineMax === 'number' &&
+          typeof sttMin === 'number' &&
+          typeof sttMax === 'number' &&
+          sttMin <= timelineMax &&
+          sttMax >= timelineMin;
+
+        const offset =
+          typeof timelineMin === 'number' && typeof sttMin === 'number' ? timelineMin - sttMin : null;
+
+        const normalizeText = (value?: string | null): string => (value || '').replace(/\s+/g, '').toLowerCase();
+        const reportByText = new Map<string, Conversation[]>();
+        for (const item of reportTextTimeline) {
+          const key = normalizeText(item.text);
+          if (!key) continue;
+          const list = reportByText.get(key) || [];
+          list.push(item);
+          reportByText.set(key, list);
+        }
+
+        const reportAlignedByIndex =
+          reportTextTimeline.length === fullConversation.length ? reportTextTimeline : null;
+        const reportAlignedByText = reportTextTimeline.length > 0
+          ? fullConversation.map((conv) => {
+              const key = normalizeText(conv.text);
+              const list = reportByText.get(key);
+              if (list && list.length > 0) {
+                return list.shift() || null;
+              }
+              return null;
+            })
+          : [];
+
+        const findImageForTime = (time?: number | string | null): string | null => {
+          const normalized = normalizeSeconds(time);
+          if (typeof normalized !== 'number') return null;
+          const directMatch = timelineSeconds.find((img) => normalized >= img.start && normalized <= img.end);
+          if (directMatch) return directMatch.src;
+          if (!hasDirectOverlap && typeof offset === 'number') {
+            const aligned = normalized + offset;
+            const alignedMatch = timelineSeconds.find((img) => aligned >= img.start && aligned <= img.end);
+            return alignedMatch ? alignedMatch.src : null;
+          }
+          return null;
+        };
+
+        if (timelineSeconds.length > 0) {
+          fullConversation = fullConversation.map((conv, index) => {
+            const reportFallback =
+              reportAlignedByIndex?.[index]?.timestamp ??
+              reportAlignedByText?.[index]?.timestamp ??
+              null;
+            const mapped = findImageForTime(reportFallback ?? conv.timestamp);
+            if (!mapped) return conv;
+            return { ...conv, imageRef: mapped };
+          });
+        }
+      }
+
+      if (sttText && fullConversation) {
+        sttImageRefs = fullConversation
+          .map((conv) => conv.imageRef)
+          .filter((ref): ref is string => !!ref && typeof ref === 'string');
+
+        if (isDevelopment) {
+          console.log(`[lecture/summary] 📸 STT에서 발견된 이미지 참조: ${sttImageRefs.length}개`);
+        }
+      }
+
+      // STT 이미지 참조 우선 처리
+      if (sttImageRefs.length > 0 && images.length > 0) {
+        const sttImages = sttImageRefs
+          .map((ref: string) => images.find((url: string) => url.includes(ref) || ref.includes(url.split('/').pop() || '')))
+          .filter((url): url is string => !!url);
+
+        const remainingImages = images.filter((url: string) => !sttImages.includes(url));
+        images = [...sttImages, ...remainingImages];
+
+        if (isDevelopment) {
+          console.log(`[lecture/summary] 📸 STT에서 활용된 이미지 ${images.length}개 사용 (STT 참조: ${sttImageRefs.length}개)`);
+        }
+      } else if (images.length > 0 && isDevelopment) {
+        console.log(`[lecture/summary] 📸 교재 이미지 ${images.length}개 발견 (STT 참조 없음, 전체 사용)`);
+      }
     }
 
     if (!sttText && images.length === 0) {
@@ -469,7 +802,7 @@ export async function POST(req: NextRequest) {
       console.log('[lecture/summary] ========================================');
       console.log(`[lecture/summary] Room ID: ${roomId}`);
       console.log(`[lecture/summary] 과목: ${subject}`);
-      console.log(`[lecture/summary] 수업 날짜: ${tutoringDatetime ? new Date(tutoringDatetime).toLocaleString('ko-KR') : '없음'}`);
+      console.log(`[lecture/summary] 수업 날짜 (KST): ${tutoringDatetime ? formatKSTDate(tutoringDatetime) : '없음'}`);
       console.log(`[lecture/summary] STT 텍스트: ${sttText ? `있음 (${sttText.length}자)` : '없음'}`);
       console.log(`[lecture/summary] 교재 이미지: ${images.length}개`);
       if (sttText) {
@@ -477,8 +810,6 @@ export async function POST(req: NextRequest) {
         console.log(`[lecture/summary] STT 미리보기:\n${sttPreview.split('\n').slice(0, 5).join('\n')}...`);
       }
       console.log('[lecture/summary] ========================================\n');
-    }
-
     }
 
     // 4. AI로 요약본 생성
@@ -495,7 +826,11 @@ export async function POST(req: NextRequest) {
 
     // 프롬프트 생성
     const displayName = studentNickname || studentName || null;
-    const gradeLabel = typeof grade === 'string' && grade.trim().length > 0 ? grade.trim() : null;
+    // 학년 우선순위: body로 전달된 grade > 자동 매칭된 학년
+    const gradeLabel = 
+      (typeof grade === 'string' && grade.trim().length > 0) 
+        ? grade.trim() 
+        : autoGrade || null;
     const subjectGuide = getSubjectGuide(subject);
     const sessionFocus = detectSessionFocus(sttText);
     const allowCurriculumHint = sessionFocus !== 'counseling' || hasLessonSignals(sttText);
@@ -520,10 +855,8 @@ export async function POST(req: NextRequest) {
       console.log('[lecture/summary] 🧠 상담 중심 수업 감지: 이미지/커리큘럼은 STT 관련성 기준으로만 사용');
     }
 
-    const shouldUseCachedPrompt = isTestMode && usedCache && !forcePromptRefresh && !!cachedPrompt;
-    const prompt = shouldUseCachedPrompt
-      ? (cachedPrompt as string)
-      : buildSummaryPrompt({
+    // 캐시가 있어도 프롬프트는 항상 새로 생성 (프롬프트 수정 반영을 위해)
+    const prompt = buildSummaryPrompt({
       displayName,
       studentName,
       studentId,
@@ -789,6 +1122,7 @@ ${sttSummary}${conceptKeywords}
         images,
         sttImageRefs,
         imagesToUse,
+        imageTimeline,
         cachedPrompt: prompt,
       });
 
@@ -832,24 +1166,216 @@ ${sttSummary}${conceptKeywords}
       }
     }
     
-    if (isDevelopment) {
-      console.log(`[lecture/summary] 📤 Gemini API 호출 시작 (프롬프트 길이: ${prompt.length}자, 이미지: ${imagesToUse.length}개)`);
-    }
-
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts }],
-    });
-
-    const responseText = result.response.text();
+    // 섹션별 생성 모드 (테스트용)
+    let shouldUseSectionMode = Boolean(useSectionMode) && fullConversation.length > 0;
     
-    if (isDevelopment) {
-      console.log(`[lecture/summary] ✅ Gemini 응답 수신 (길이: ${responseText.length}자)`);
-      console.log(`[lecture/summary] 📝 응답 미리보기:\n${responseText.substring(0, 300)}...`);
-    }
-    
-    // JSON 파싱 (강화된 로직)
     let summaryData: any = null;
-    try {
+    
+    if (shouldUseSectionMode) {
+      if (isDevelopment) {
+        console.log(`[lecture/summary] 📑 섹션별 생성 모드 시작`);
+      }
+
+      // 섹션 분할
+      const sections = splitConversationsIntoSections(fullConversation, images);
+      
+      if (isDevelopment) {
+        console.log(`[lecture/summary] 📑 총 ${sections.length}개 섹션 분할 완료`);
+      }
+
+      // 각 섹션별 요약 생성
+      const sectionSummaries: Array<{ sectionIndex: number; summary: any; images: string[] }> = [];
+      
+      for (const section of sections) {
+        const sectionSttText = getSectionSttText(section);
+        const sectionImages = section.imageRefs.length > 0 
+          ? section.imageRefs 
+          : images.slice(0, 3); // 기본값: 처음 3개 이미지
+
+        // 섹션별 프롬프트 생성 (간단한 버전)
+        const sectionPrompt = buildSummaryPrompt({
+          displayName,
+          studentName,
+          studentId,
+          gradeLabel,
+          subject,
+          subjectGuide,
+          curriculumHint: curriculumHintToUse,
+          tutoringDatetime,
+          sttText: sectionSttText,
+          missedParts: [], // 섹션별로는 놓친 부분 생략
+          images: sectionImages,
+          sessionFocus,
+        });
+
+        // 섹션별 이미지 다운로드
+        const sectionParts: any[] = [{ text: sectionPrompt }];
+        if (sectionImages.length > 0) {
+          const sectionImagePromises = sectionImages.map(async (imageUrl) => {
+            let imageData = imageCache.get(imageUrl);
+            if (!imageData) {
+              const downloaded = await downloadAndConvertImage(imageUrl);
+              if (!downloaded) return null;
+              imageData = downloaded;
+              imageCache.set(imageUrl, imageData);
+            }
+            return {
+              inlineData: {
+                data: imageData.buffer.toString('base64'),
+                mimeType: imageData.mimeType,
+              },
+            };
+          });
+          
+          const sectionImageParts = (await Promise.all(sectionImagePromises))
+            .filter((part): part is { inlineData: { data: string; mimeType: string } } => part !== null);
+          
+          sectionParts.push(...sectionImageParts);
+        }
+
+        // 섹션별 요약 생성
+        if (isDevelopment) {
+          console.log(`[lecture/summary] 📑 섹션 ${section.index + 1}/${sections.length} 생성 중... (STT: ${sectionSttText.length}자, 이미지: ${sectionImages.length}개)`);
+        }
+
+        try {
+          const sectionResult = await model.generateContent({
+            contents: [{ role: 'user', parts: sectionParts }],
+          });
+
+          const sectionResponseText = sectionResult.response.text();
+          let sectionSummary: any = null;
+
+          // JSON 파싱 (간단 버전)
+          try {
+            const cleaned = sectionResponseText
+              .replace(/^```json\s*/gim, '')
+              .replace(/^```\s*/gim, '')
+              .replace(/\s*```$/gim, '')
+              .replace(/```/g, '')
+              .trim();
+            
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              sectionSummary = JSON.parse(jsonMatch[0]);
+            }
+          } catch (parseErr) {
+            if (isDevelopment) {
+              console.warn(`[lecture/summary] ⚠️ 섹션 ${section.index + 1} JSON 파싱 실패, 스킵`);
+            }
+          }
+
+          if (sectionSummary) {
+            sectionSummaries.push({
+              sectionIndex: section.index,
+              summary: sectionSummary,
+              images: sectionImages,
+            });
+            
+            if (isDevelopment) {
+              console.log(`[lecture/summary] ✅ 섹션 ${section.index + 1}/${sections.length} 완료`);
+            }
+          }
+        } catch (sectionErr: any) {
+          if (isDevelopment) {
+            console.error(`[lecture/summary] ❌ 섹션 ${section.index + 1} 생성 실패:`, sectionErr?.message || sectionErr);
+          }
+        }
+      }
+
+      // 섹션 요약들을 통합
+      if (sectionSummaries.length > 0) {
+        if (isDevelopment) {
+          console.log(`[lecture/summary] 📑 섹션 요약 통합 중... (${sectionSummaries.length}개 섹션)`);
+        }
+
+        // 통합 프롬프트 생성
+        const integrationPrompt = `당신은 수업 요약 통합 전문가입니다.
+
+**생성된 섹션별 요약:**
+
+${sectionSummaries.map((s, idx) => `
+## 섹션 ${idx + 1}:
+- 제목: ${s.summary.title || '없음'}
+- 핵심 내용: ${s.summary.detailedContent?.substring(0, 500) || s.summary.conceptSummary?.substring(0, 500) || '없음'}
+`).join('\n')}
+
+**작업:**
+위 섹션별 요약들을 읽고, 전체 수업을 일관성 있게 통합한 하나의 요약본을 생성해주세요.
+
+**출력 형식 (기존 요약본 형식과 동일):**
+- title: 전체 수업 제목
+- detailedContent: 모든 섹션을 통합한 상세 내용
+- conceptSummary: 핵심 개념 요약
+- cardNewsContent: 카드뉴스 내용 (5-8개 카드)
+- cardQuizHints: 카드 확인 문제 (각 카드당 1개)
+- visualAids: 시각 자료 (필요시)
+- 기타 필수 필드 모두 포함
+
+**중요:**
+- 모든 섹션의 내용을 포함해야 함
+- 일관성 있는 톤과 스타일 유지
+- 중복 제거하되 중요한 내용은 놓치지 말 것
+- 원본 섹션 요약의 구조를 최대한 유지`;
+
+        // 통합 요약 생성
+        const integrationResult = await model.generateContent({
+          contents: [{ role: 'user', parts: [{ text: integrationPrompt }] }],
+        });
+
+        const integrationResponseText = integrationResult.response.text();
+        
+        try {
+          const cleaned = integrationResponseText
+            .replace(/^```json\s*/gim, '')
+            .replace(/^```\s*/gim, '')
+            .replace(/\s*```$/gim, '')
+            .replace(/```/g, '')
+            .trim();
+          
+          const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            summaryData = JSON.parse(jsonMatch[0]);
+            
+            if (isDevelopment) {
+              console.log(`[lecture/summary] ✅ 섹션 요약 통합 완료`);
+            }
+          }
+        } catch (parseErr) {
+          if (isDevelopment) {
+            console.error(`[lecture/summary] ❌ 통합 요약 파싱 실패, 첫 번째 섹션 사용`);
+          }
+          // 파싱 실패 시 첫 번째 섹션 요약 사용
+          summaryData = sectionSummaries[0]?.summary || null;
+        }
+      } else {
+        if (isDevelopment) {
+          console.error(`[lecture/summary] ❌ 모든 섹션 생성 실패, 기본 모드로 폴백`);
+        }
+        // 섹션별 생성 실패 시 기본 모드로 폴백
+        shouldUseSectionMode = false;
+      }
+    }
+
+    // 기본 모드 (섹션별 모드가 아니거나 실패한 경우)
+    if (!summaryData) {
+      if (isDevelopment) {
+        console.log(`[lecture/summary] 📤 Gemini API 호출 시작 (프롬프트 길이: ${prompt.length}자, 이미지: ${imagesToUse.length}개)`);
+      }
+
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts }],
+      });
+
+      const responseText = result.response.text();
+      
+      if (isDevelopment) {
+        console.log(`[lecture/summary] ✅ Gemini 응답 수신 (길이: ${responseText.length}자)`);
+        console.log(`[lecture/summary] 📝 응답 미리보기:\n${responseText.substring(0, 300)}...`);
+      }
+      
+      // JSON 파싱 (강화된 로직)
+      try {
       // 1단계: 모든 코드 블록 마커 제거 (여러 번 시도)
       let cleanedText = responseText
         // 코드 블록 시작 마커 제거 (여러 패턴)
@@ -1010,9 +1536,18 @@ ${sttSummary}${conceptKeywords}
         todayMission: '오늘 배운 핵심 개념 한 번 더 읽어보기!',
       };
     }
+    }
     
     // 문자열 필드가 JSON 문자열인 경우 파싱 (Gemini가 중첩 JSON을 반환하는 경우 대비)
-    const stringFields = ['conceptSummary', 'textbookHighlight', 'teacherMessage', 'todayMission', 'encouragement', 'detailedContent'];
+    const stringFields = [
+      'conceptSummary',
+      'textbookHighlight',
+      'teacherMessage',
+      'todayMission',
+      'encouragement',
+      'detailedContent',
+      'cardNewsContent',
+    ];
     for (const field of stringFields) {
       if (summaryData[field] && typeof summaryData[field] === 'string') {
         const value = summaryData[field].trim();
@@ -1034,6 +1569,21 @@ ${sttSummary}${conceptKeywords}
           } catch {
             // JSON 파싱 실패 시 원본 문자열 유지
           }
+        }
+      }
+    }
+
+    // cardNewsContent가 문자열 JSON 배열로 온 경우 처리
+    if (summaryData.cardNewsContent && typeof summaryData.cardNewsContent === 'string') {
+      const value = summaryData.cardNewsContent.trim();
+      if (value.startsWith('[') && value.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) {
+            summaryData.cardNewsContent = parsed;
+          }
+        } catch {
+          // ignore
         }
       }
     }
@@ -1071,6 +1621,7 @@ ${sttSummary}${conceptKeywords}
       conceptSummary: summaryData.conceptSummary || '',
       detailedContent: summaryData.detailedContent || '', // 수업 상세 정리
       textbookHighlight: summaryData.textbookHighlight || '',
+      cardNewsContent: summaryData.cardNewsContent || [],
       visualAids: summaryData.visualAids || [],
       missedParts: summaryData.missedParts || [],
       todayMission: summaryData.todayMission || '',
@@ -1086,6 +1637,7 @@ ${sttSummary}${conceptKeywords}
         fullText: sttText,
         conversations: fullConversation || [],
         imageRefs: sttImageRefs,
+        imageTimeline: imageTimeline || [],
       } : null,
       imagesInOrder: images,
     };
@@ -1107,6 +1659,7 @@ ${sttSummary}${conceptKeywords}
         tutoringDatetime,
         imageCount: images.length,
         imageUrls: images,
+        imageTimelineCount: imageTimeline.length,
         hasStt: !!sttText,
         missedPartsCount: missedParts.length,
         isSecretNote: true,
@@ -1208,7 +1761,58 @@ ${sttSummary}${conceptKeywords}
       };
     }
 
+    const normalizeText = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
+    const extractTokens = (value: string) => value.match(/[A-Za-z가-힣]{2,}/g) || [];
+    const getRequiredQuizCount = (cards: any[]) => {
+      const count = cards.length;
+      if (count <= 0) return 0;
+      if (count < 3) return count;
+      return Math.min(6, count);
+    };
+    const isValidHint = (hint: any) => {
+      if (!hint || typeof hint !== 'object') return false;
+      const question = String(hint.question || '').trim();
+      const options = Array.isArray(hint.options) ? hint.options.map((o: any) => String(o).trim()) : [];
+      const answerIndex = hint.answerIndex;
+      if (!question || question.length < 8 || !question.includes('___')) return false;
+      if (options.length !== 2) return false;
+      if (!options[0] || !options[1] || options[0] === options[1]) return false;
+      if (answerIndex !== 0 && answerIndex !== 1) return false;
+      if (options.some((opt: string) => opt.length < 2)) return false;
+      return true;
+    };
+
+    const hasCardContentMatch = (hint: any, cardText: string) => {
+      const question = String(hint.question || '');
+      const options = Array.isArray(hint.options) ? hint.options.map((o: any) => String(o)) : [];
+      const normalizedCard = normalizeText(cardText);
+      const optionsInCard = options.every((opt: string) => {
+        const normalizedOpt = normalizeText(opt);
+        return normalizedOpt.length >= 2 && normalizedCard.includes(normalizedOpt);
+      });
+      if (!optionsInCard) return false;
+      const questionTokens = extractTokens(question.replace('___', ''));
+      return questionTokens.some((token) => normalizedCard.includes(normalizeText(token)));
+    };
+
     if (!Array.isArray(summaryData.cardQuizHints)) {
+      summaryData.cardQuizHints = [];
+    }
+    if (Array.isArray(summaryData.cardNewsContent) && summaryData.cardNewsContent.length > 0) {
+      summaryData.cardQuizHints = summaryData.cardQuizHints.filter((hint: any, idx: number) => {
+        if (!isValidHint(hint)) return false;
+        const card = summaryData.cardNewsContent[idx];
+        const cardText = `${card?.title || ''} ${card?.body || ''}`.trim();
+        if (!cardText) return false;
+        return hasCardContentMatch(hint, cardText);
+      });
+    } else {
+      summaryData.cardQuizHints = summaryData.cardQuizHints.filter((hint: any) => isValidHint(hint));
+    }
+
+    const cardNewsContent = Array.isArray(summaryData.cardNewsContent) ? summaryData.cardNewsContent : [];
+    const requiredQuizCount = getRequiredQuizCount(cardNewsContent);
+    if (requiredQuizCount > 0 && summaryData.cardQuizHints.length < requiredQuizCount) {
       summaryData.cardQuizHints = [];
     }
     if (sessionFocus === 'counseling') {

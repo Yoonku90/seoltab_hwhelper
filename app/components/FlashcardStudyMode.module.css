@@ -1,0 +1,570 @@
+.container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* 진행바 */
+.progressBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  z-index: 1000;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+  transition: width 0.3s ease;
+}
+
+/* 학습 영역 */
+.studyArea {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  position: relative;
+  min-height: 600px;
+}
+
+/* 챕터 타이틀 */
+.chapterTitle {
+  text-align: center;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 12px 24px;
+  border-radius: 20px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #667eea;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin-bottom: 20px;
+}
+
+/* 진행률 정보 */
+.progressInfo {
+  text-align: center;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 16px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #764ba2;
+  margin-bottom: 20px;
+}
+
+/* 콤보 애니메이션 */
+.comboAnimation {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2000;
+  pointer-events: none;
+  animation: comboPop 0.6s ease-out;
+}
+
+.comboText {
+  font-size: 48px;
+  font-weight: 900;
+  color: #ffd700;
+  text-shadow: 
+    0 0 10px rgba(255, 215, 0, 0.8),
+    0 0 20px rgba(255, 215, 0, 0.6),
+    0 0 30px rgba(255, 215, 0, 0.4);
+  animation: comboBounce 0.6s ease-out;
+}
+
+@keyframes comboPop {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes comboBounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* 플래시카드 컨테이너 */
+.cardContainer {
+  width: 100%;
+  max-width: 500px;
+  perspective: 1000px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  gap: 20px;
+}
+
+/* 카드 네비게이션 버튼 */
+.cardNavButton {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: #667eea;
+  font-size: 24px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.cardNavButton:hover {
+  background: white;
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.cardNavButton:active {
+  transform: scale(0.95);
+}
+
+/* 플래시카드 */
+.card {
+  width: 100%;
+  max-width: 400px;
+  height: 500px;
+  position: relative;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+  flex: 1;
+}
+
+.cardFlipped {
+  transform: rotateY(180deg);
+}
+
+.cardInner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+
+.cardFront,
+.cardBack {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 20px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.cardFront {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.cardBack {
+  background: white;
+  color: #333;
+  transform: rotateY(180deg);
+  overflow-y: auto;
+}
+
+.cardBackTitle {
+  font-size: 24px;
+  font-weight: 700;
+  color: #667eea;
+  margin-bottom: 20px;
+  text-align: center;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.cardTitle {
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
+.cardHint {
+  font-size: 16px;
+  text-align: center;
+  line-height: 1.6;
+  opacity: 0.9;
+  margin-top: 20px;
+  margin-bottom: 30px;
+}
+
+.cardFlipButtons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.flipButton {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.flipButton:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.flipButtonUnsure {
+  background: rgba(255, 193, 7, 0.3);
+  border-color: rgba(255, 193, 7, 0.6);
+}
+
+.flipButtonUnsure:hover {
+  background: rgba(255, 193, 7, 0.4);
+}
+
+.cardContent {
+  width: 100%;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #333;
+}
+
+
+.nextButton {
+  width: 100%;
+  padding: 16px 32px;
+  font-size: 18px;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.nextButtonActive {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+}
+
+.nextButtonActive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(79, 172, 254, 0.6);
+}
+
+.nextButtonActive:active {
+  transform: translateY(0);
+}
+
+.nextButtonDisabled {
+  background: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: not-allowed;
+}
+
+/* 퀴즈 팝업 */
+.quizOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1500;
+  padding: 20px;
+  animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.quizPopup {
+  background: white;
+  border-radius: 20px;
+  padding: 30px;
+  max-width: 400px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.quizQuestion {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  line-height: 1.6;
+  color: #333;
+  text-align: center;
+}
+
+.quizOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quizOption {
+  padding: 16px 20px;
+  font-size: 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  font-weight: 500;
+}
+
+.quizOption:hover {
+  border-color: #667eea;
+  background: #f5f5ff;
+}
+
+.quizOptionCorrect {
+  padding: 16px 20px;
+  font-size: 16px;
+  border: 2px solid #4caf50;
+  border-radius: 12px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  cursor: pointer;
+  font-weight: 600;
+  text-align: center;
+}
+
+.quizOptionWrong {
+  padding: 16px 20px;
+  font-size: 16px;
+  border: 2px solid #f44336;
+  border-radius: 12px;
+  background: #ffebee;
+  color: #c62828;
+  cursor: pointer;
+  font-weight: 600;
+  text-align: center;
+}
+
+.quizResult {
+  margin-top: 20px;
+  padding: 12px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.quizResultWrong {
+  margin-top: 20px;
+  padding: 12px;
+  background: #ffebee;
+  color: #c62828;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 500;
+}
+
+
+/* 완료 화면 */
+.completionScreen {
+  text-align: center;
+  padding: 40px 20px;
+  background: white;
+  border-radius: 20px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.completionScreen h2 {
+  font-size: 32px;
+  color: #667eea;
+  margin-bottom: 16px;
+}
+
+.completionScreen p {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 32px;
+}
+
+.completionButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.completeButton {
+  width: 100%;
+  padding: 16px 32px;
+  font-size: 18px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.completeButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(79, 172, 254, 0.6);
+}
+
+.completeButtonSecondary {
+  width: 100%;
+  padding: 16px 32px;
+  font-size: 18px;
+  font-weight: 600;
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.completeButtonSecondary:hover {
+  background: #f5f5ff;
+  transform: translateY(-2px);
+}
+
+/* 빈 상태 */
+.emptyState {
+  text-align: center;
+  padding: 40px;
+  color: white;
+  font-size: 18px;
+}
+
+/* 모바일 최적화 */
+@media (max-width: 480px) {
+  .container {
+    padding: 10px;
+  }
+
+  .studyArea {
+    padding: 10px;
+    min-height: 500px;
+  }
+
+  .chapterTitle {
+    font-size: 16px;
+    padding: 10px 20px;
+    margin-bottom: 15px;
+  }
+
+  .progressInfo {
+    font-size: 12px;
+    padding: 6px 12px;
+    margin-bottom: 15px;
+  }
+
+  .cardContainer {
+    gap: 10px;
+  }
+
+  .cardNavButton {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .card {
+    height: 450px;
+  }
+
+  .cardFront,
+  .cardBack {
+    padding: 20px;
+  }
+
+  .cardTitle {
+    font-size: 24px;
+  }
+
+  .cardHint {
+    font-size: 14px;
+  }
+
+  .cardContent {
+    font-size: 14px;
+  }
+
+  .quizPopup {
+    padding: 20px;
+  }
+
+  .quizQuestion {
+    font-size: 16px;
+  }
+
+  .comboText {
+    font-size: 36px;
+  }
+}

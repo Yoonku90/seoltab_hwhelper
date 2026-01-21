@@ -1,11 +1,38 @@
 export const MATH_SUBJECT_GUIDE = [
-  `**수학 과목 요약 요구사항 (매우 중요):**
+  `**공통 톤/포맷 (국영수사과 공통):**
+  - 친근한 반말, 짧고 또박또박
+  - 한 문장 30~40자 내외로 끊기
+  - 핵심 용어는 **볼드**, 헷갈리는 포인트는 ==형광펜==
+  - 문장/항목 끝마다 줄바꿈
+  - 과목별 고정 구조가 있으면 그 규칙을 최우선 적용
+
+  **수학 과목 요약 요구사항 (매우 중요):**
   - 수학 과목은 방금 끝난 수업에서 다룬 핵심 개념을 요약하는 것이 주요 목적입니다.
   - 개념 설명이 없이 문제 풀이만 진행 된 수업이더라도 핵심 개념을 요약해서 정리합니다. (핵심 정의/공식/성질을 먼저 정리)
   - 각 개념을 간결하게, 하지만 이해할 수 있게 설명 (너무 짧지 않게, 너무 길지 않게)
   - 계산 과정은 한두 단계로 요약하고, 실수할 수 있는 포인트(부호/분모/괄호) 강조
   - 기하/도형이면 도형 성질과 보조선/각 관계 중심으로 정리
   - 수학 과목 시각 자료 생성 특별 지침을 참고하여 정리된 핵심 정리 개념을 바탕으로 도형, 그래프와 함께 보며 이해할 수 있도록 핵심 정리 설명과 일치하는 시각 자료 생성
+    - 시각 자료는 핵심 정리가 아니라, 핵심 정리의 설명을 보조하는 시각 자료입니다. 시각 자료로 핵심 정리 설명을 대체할 수 없습니다.
+
+  **요약 스타일:**
+  - **짧고 또박또박** 정리 (카드뉴스 읽기 좋은 길이)
+  - 한 문장 **30~40자 내외**로 끊어 읽기 좋게
+  - 수업 흐름 순서대로 핵심을 배열
+  
+  **영역 구분 (권장):**
+  - 수업 내용이 섞여 있으면 **[대수] / [기하] / [함수] / [확률·통계] / [문제풀이]**로 섹션을 나눠 정리
+  - 각 섹션은 **1~3개 핵심 포인트**만 요약
+  
+  **개념 파트 형식 (권장):**
+  - 구조화된 형식으로 정리:
+    - 📍 핵심 공식/정의 (한 문장, 구어체)
+    - 📝 짧은 예시 (수업에서 나온 문제/수식만)
+    - ⚠️ 실수 주의점 (부호, 분모, 괄호 등 - 있을 때만)
+  
+  **표/공식 정리:**
+  - 공식 비교, 조건 정리 필요 시 **Markdown 표**로 간단히 정리
+  - 예: 이차방정식 근의 공식, 삼각비 값 비교 등
   
   ========================================
   수학 과목 시각 자료 생성 특별 지침 (매우 중요)
@@ -13,7 +40,8 @@ export const MATH_SUBJECT_GUIDE = [
   
   **VisualAidRenderer 배열 생성 필수:**
   - 수업에서 다룬 **도형, 그래프, 좌표계, 기하 도형**이 있으면 핵심 정리 각 섹션을 설명할 수 있는 도형 또는 그래프를 반드시 **VisualAidRenderer 배열**에 JSON 형태로 포함
-  - **중요: VisualAidRenderer는 문제를 만드는 것이 아니라, 핵심 정리 내용을 시각적으로 보조하는 자료입니다**
+  - **중요: VisualAidRenderer는 문제나 설명을 만드는 것이 아니라, 핵심 정리 내용을 시각적으로 보조하는 자료입니다**
+  - 예 JSON 으로 만들 수 없는 플로우차트 와 같은 형태는 만들지 않습니다. 반드리 예시 JSON 형식을 참고해서 만듭니다.
   - 그래프/함수가 다뤄졌으면 type: "graph" 형식으로 포함 (함수식, 범위, 특정점 포함)
   - 도형/기하가 다뤄졌으면 type: "geometry" 형식으로 포함 (shapes 배열, annotations 배열 포함)
   - detailedContent에서 넘버링된 섹션(1., 2., 3. 등) 각각에 해당하는 도형/그래프를 배열에 포함
@@ -28,6 +56,13 @@ export const MATH_SUBJECT_GUIDE = [
   - shapes는 배열로 여러 도형 조합 가능
   - annotations로 치수, 각도, 레이블 추가
   - question, choices, answer는 선택사항 (수업에서 실제 문제를 풀었을 때만 포함)
+  
+  **플로우차트/분류도 만들기:**
+  - 분류도나 과정 설명이 필요하면 type: "geometry"로 만들되, rect(박스)와 line(화살표)을 조합
+  - rect로 박스 만들기: position [x, y], width, height, rx(모서리 둥글기), fill(배경색), stroke(테두리색)
+  - line으로 화살표 만들기: points로 시작점과 끝점 지정, stroke로 색상 지정
+  - text로 박스 안 텍스트: position을 박스 중앙으로, textAnchor: "middle"로 가운데 정렬
+  - **중요: 플로우차트는 반드시 geometry 타입으로 만들고, rect + line + text 조합으로 표현**
   
   ========================================
   VisualAidRenderer 도형/그래프 JSON 예시 (형식을 참고해 핵심 개념 정리를 보조하는 시각자료를 생성)
@@ -248,5 +283,56 @@ export const MATH_SUBJECT_GUIDE = [
       {"type": "text", "position": [0, 220], "text": "y - (-1) = 1(x - (-2))", "fontSize": 14, "color": "#1e293b"}
     ]
   }
+  
+  [플로우차트 예시 - 실수의 분류]
+  {
+    "name": "실수의 분류",
+    "type": "geometry",
+    "shapes": [
+      {"type": "rect", "position": [50, 20], "width": 200, "height": 40, "rx": 8, "fill": "rgba(59, 130, 246, 0.1)", "stroke": "#3b82f6", "strokeWidth": 2},
+      {"type": "line", "points": [[150, 60], [150, 100]], "stroke": "#1e293b", "strokeWidth": 2},
+      {"type": "line", "points": [[100, 100], [200, 100]], "stroke": "#1e293b", "strokeWidth": 2},
+      {"type": "line", "points": [[100, 100], [100, 140]], "stroke": "#1e293b", "strokeWidth": 2},
+      {"type": "line", "points": [[200, 100], [200, 140]], "stroke": "#1e293b", "strokeWidth": 2},
+      {"type": "rect", "position": [20, 140], "width": 160, "height": 40, "rx": 8, "fill": "rgba(16, 185, 129, 0.1)", "stroke": "#10b981", "strokeWidth": 2},
+      {"type": "rect", "position": [220, 140], "width": 160, "height": 40, "rx": 8, "fill": "rgba(245, 158, 11, 0.1)", "stroke": "#f59e0b", "strokeWidth": 2},
+      {"type": "line", "points": [[100, 180], [100, 220]], "stroke": "#1e293b", "strokeWidth": 2},
+      {"type": "rect", "position": [20, 220], "width": 160, "height": 40, "rx": 8, "fill": "rgba(59, 130, 246, 0.1)", "stroke": "#3b82f6", "strokeWidth": 2}
+    ],
+    "annotations": [
+      {"type": "text", "position": [150, 45], "text": "실수", "fontSize": 16, "color": "#1e293b", "fontWeight": "bold", "textAnchor": "middle"},
+      {"type": "text", "position": [100, 165], "text": "유리수", "fontSize": 14, "color": "#10b981", "fontWeight": "bold", "textAnchor": "middle"},
+      {"type": "text", "position": [300, 165], "text": "무리수", "fontSize": 14, "color": "#f59e0b", "fontWeight": "bold", "textAnchor": "middle"},
+      {"type": "text", "position": [300, 185], "text": "π, √2, √3...", "fontSize": 12, "color": "#64748b", "textAnchor": "middle"},
+      {"type": "text", "position": [100, 245], "text": "정수, 자연수 등", "fontSize": 12, "color": "#64748b", "textAnchor": "middle"},
+      {"type": "text", "position": [100, 265], "text": "1/2, -0.5...", "fontSize": 12, "color": "#64748b", "textAnchor": "middle"}
+    ]
+  }
+  
+  [플로우차트 예시 - 인수분해와 치환]
+  {
+    "name": "인수분해와 치환",
+    "type": "geometry",
+    "shapes": [
+      {"type": "rect", "position": [100, 20], "width": 200, "height": 50, "rx": 8, "fill": "rgba(239, 68, 68, 0.1)", "stroke": "#ef4444", "strokeWidth": 2},
+      {"type": "line", "points": [[200, 70], [200, 100]], "stroke": "#1e293b", "strokeWidth": 2, "markerEnd": "url(#arrow)"},
+      {"type": "rect", "position": [100, 100], "width": 200, "height": 50, "rx": 8, "fill": "rgba(59, 130, 246, 0.1)", "stroke": "#3b82f6", "strokeWidth": 2},
+      {"type": "line", "points": [[200, 150], [200, 180]], "stroke": "#1e293b", "strokeWidth": 2, "markerEnd": "url(#arrow)"},
+      {"type": "rect", "position": [100, 180], "width": 200, "height": 50, "rx": 8, "fill": "rgba(16, 185, 129, 0.1)", "stroke": "#10b981", "strokeWidth": 2},
+      {"type": "line", "points": [[200, 230], [200, 260]], "stroke": "#1e293b", "strokeWidth": 2, "markerEnd": "url(#arrow)"},
+      {"type": "rect", "position": [100, 260], "width": 200, "height": 50, "rx": 8, "fill": "rgba(59, 130, 246, 0.1)", "stroke": "#3b82f6", "strokeWidth": 2}
+    ],
+    "annotations": [
+      {"type": "text", "position": [200, 50], "text": "초기 식", "fontSize": 14, "color": "#1e293b", "fontWeight": "bold", "textAnchor": "middle"},
+      {"type": "text", "position": [200, 130], "text": "x²+3x = A로 치환", "fontSize": 14, "color": "#1e293b", "fontWeight": "bold", "textAnchor": "middle"},
+      {"type": "text", "position": [200, 210], "text": "전개 및 인수분해", "fontSize": 14, "color": "#1e293b", "fontWeight": "bold", "textAnchor": "middle"},
+      {"type": "text", "position": [200, 290], "text": "A에 원래 식 대입", "fontSize": 14, "color": "#1e293b", "fontWeight": "bold", "textAnchor": "middle"}
+    ]
+  }
+
+  **카드뉴스 확인 문제 힌트 (수학):**
+  - 중심 축: 공식/정의/성질
+  - 정답·오답은 같은 축에서 대비 (동의어/유사어 금지)
+  - 오답 템플릿 예시: "일차함수 vs 이차함수", "최댓값 vs 최솟값", "미분 vs 적분", "삼각형 vs 사각형"
   `
   ].join('\n'); 

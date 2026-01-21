@@ -4,8 +4,19 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import MarkdownMath from '@/app/components/MarkdownMath';
+import FlashcardStudyMode from '@/app/components/FlashcardStudyMode';
 import VisualAidRenderer from '@/app/components/VisualAidRenderer';
 import styles from './page.module.css';
+
+interface MappedItem {
+  imageUrl: string;
+  timestamp: number;
+  texts: Array<{
+    speaker: string;
+    text: string;
+    timestamp: number;
+  }>;
+}
 
 function resolveString(value: unknown): string {
   if (typeof value === 'string') {
@@ -101,8 +112,6 @@ const KEYWORD_STOPWORDS = new Set([
   '오늘', '수업', '핵심', '정리', '내용', '부분', '문제', '설명', '예시', '규칙', '개념',
   '학생', '선생님', '쌤', '요약', '포인트', '중요', '정답', '이번', '이것', '그것', '또는',
   '그리고', '때문', '정리하면', '예를', '예시로', '다음', '처음', '마지막', '비교',
-  '있다', '없다', '된다', '된다', '한다', '한다', '이다', '이다', '되다', '하다',
-  '이렇게', '그렇게', '저렇게', '어떻게', '무엇', '누구', '언제', '어디', '왜',
 ]);
 
 const KEYWORD_SUFFIX_BOOST = [
@@ -110,25 +119,10 @@ const KEYWORD_SUFFIX_BOOST = [
   '비례', '부등식', '명사', '동사', '형용사', '절', '구', '시제', '비교급', '최상급',
   '접속사', '관계대명사', '확률', '통계', '용액', '전압', '전류', '속도', '가속도',
   '세포', '유전', '광합성', '지형', '기후', '헌법', '국회', '미분', '적분',
-  '효소', '반응', '화합물', '원소', '분자', '이온', '산성', '염기성', '중성',
-  '삼각형', '사각형', '원', '각도', '면적', '부피', '둘레', '반지름', '지름',
 ];
 
-// 키워드가 의미있는 개념인지 판단
-function isMeaningfulKeyword(token: string): boolean {
-  if (token.length < 2) return false;
-  if (KEYWORD_STOPWORDS.has(token)) return false;
-  // 숫자만 있는 경우 제외
-  if (/^\d+$/.test(token)) return false;
-  // 한 글자 한글 제외 (조사 등)
-  if (/^[가-힣]$/.test(token)) return false;
-  return true;
-}
-
 function extractKeywordCandidates(text: string): string[] {
-  // 한글 단어, 영어 단어, 한글+영어 조합 추출
-  const tokens = text.match(/[A-Za-z가-힣]{2,}/g) || [];
-  return tokens.filter((token) => isMeaningfulKeyword(token));
+  return (text.match(/[A-Za-z가-힣]{2,}/g) || []).filter((token) => !KEYWORD_STOPWORDS.has(token));
 }
 
 function pickKeyTermFromText(text: string): { sentence: string; keyword: string; distractor: string } | null {
@@ -136,69 +130,44 @@ function pickKeyTermFromText(text: string): { sentence: string; keyword: string;
   const sentences = cleaned
     .split(/\n|(?<=[.!?])\s+/)
     .map((sentence) => sentence.trim())
-    .filter(Boolean)
-    .filter((s) => s.length > 10); // 너무 짧은 문장 제외
+    .filter(Boolean);
 
   if (sentences.length === 0) return null;
 
   const tokenCounts = new Map<string, number>();
-  const tokenSentences = new Map<string, string>(); // 각 토큰이 나온 문장 저장
-  
   sentences.forEach((sentence) => {
     extractKeywordCandidates(sentence).forEach((token) => {
       tokenCounts.set(token, (tokenCounts.get(token) || 0) + 1);
-      if (!tokenSentences.has(token)) {
-        tokenSentences.set(token, sentence);
-      }
     });
   });
-
-  if (tokenCounts.size === 0) return null;
 
   let bestToken = '';
   let bestSentence = sentences[0];
   let bestScore = -1;
 
-  // 각 문장에서 가장 좋은 키워드 찾기
   sentences.forEach((sentence, sentenceIndex) => {
     const tokens = extractKeywordCandidates(sentence);
     tokens.forEach((token) => {
       const freq = tokenCounts.get(token) || 0;
-      const lengthScore = Math.min(token.length, 8); // 2-8자 사이가 이상적
-      const freqScore = freq > 1 ? Math.min((freq - 1) * 2, 10) : 0; // 빈도 점수 (최대 10)
-      const suffixScore = KEYWORD_SUFFIX_BOOST.some((suffix) => token.endsWith(suffix)) ? 5 : 0; // 용어 접미사 보너스
-      const earlyScore = sentenceIndex < 3 ? (3 - sentenceIndex) : 0; // 앞쪽 문장 우선
-      const boldScore = sentence.includes(`**${token}**`) ? 3 : 0; // 볼드 처리된 키워드 우선
-      const score = lengthScore + freqScore + suffixScore + earlyScore + boldScore;
+      const lengthScore = Math.min(token.length, 8);
+      const freqScore = freq > 1 ? (freq - 1) * 2 : 0;
+      const suffixScore = KEYWORD_SUFFIX_BOOST.some((suffix) => token.endsWith(suffix)) ? 3 : 0;
+      const earlyScore = sentenceIndex === 0 ? 2 : 0;
+      const score = lengthScore + freqScore + suffixScore + earlyScore;
 
       if (score > bestScore) {
         bestScore = score;
         bestToken = token;
-        bestSentence = tokenSentences.get(token) || sentence;
+        bestSentence = sentence;
       }
     });
   });
 
-  if (!bestToken || bestScore < 5) return null; // 최소 점수 미달 시 null 반환
+  if (!bestToken) return null;
 
-  // 오답(distractor) 선택: 같은 문장에 있지 않고, 다른 의미의 키워드
-  const alternativeTokens = Array.from(tokenCounts.keys())
-    .filter((token) => token !== bestToken)
-    .filter((token) => {
-      // 같은 문장에 있으면 제외 (비슷한 의미일 가능성)
-      const tokenSentence = tokenSentences.get(token) || '';
-      return tokenSentence !== bestSentence;
-    });
-
-  // 빈도가 높고, 접미사 보너스가 있는 키워드를 오답으로 선택
-  const distractor = alternativeTokens
-    .sort((a, b) => {
-      const aFreq = tokenCounts.get(a) || 0;
-      const bFreq = tokenCounts.get(b) || 0;
-      const aSuffix = KEYWORD_SUFFIX_BOOST.some((suffix) => a.endsWith(suffix)) ? 1 : 0;
-      const bSuffix = KEYWORD_SUFFIX_BOOST.some((suffix) => b.endsWith(suffix)) ? 1 : 0;
-      return (bFreq + bSuffix) - (aFreq + aSuffix);
-    })[0] || '다른 개념';
+  const alternativeTokens = Array.from(tokenCounts.keys()).filter((token) => token !== bestToken);
+  const distractor =
+    alternativeTokens.sort((a, b) => (tokenCounts.get(b) || 0) - (tokenCounts.get(a) || 0))[0] || '다른 개념';
 
   return { sentence: bestSentence, keyword: bestToken, distractor };
 }
@@ -246,6 +215,43 @@ function resolveVisualAids(value: unknown): any[] {
     }
   }
   return [];
+}
+
+function normalizeTitleText(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, '');
+}
+
+function splitDetailedContentSections(content: string): Array<{ title: string | null; body: string }> {
+  const lines = content.split('\n');
+  const sections: Array<{ title: string | null; body: string[] }> = [];
+  let current: { title: string | null; body: string[] } | null = null;
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^###\s*(.+)$/);
+    if (headingMatch) {
+      if (current) {
+        sections.push(current);
+      }
+      current = { title: headingMatch[1].trim(), body: [] };
+      continue;
+    }
+
+    if (!current) {
+      current = { title: null, body: [] };
+    }
+    current.body.push(line);
+  }
+
+  if (current) {
+    sections.push(current);
+  }
+
+  return sections
+    .map((section) => ({
+      title: section.title,
+      body: section.body.join('\n').trim(),
+    }))
+    .filter((section) => section.title || section.body);
 }
 
 function normalizeSummaryObject(summary: any): any {
@@ -356,19 +362,135 @@ function LectureSummaryPage() {
   const searchParams = useSearchParams();
   const [roomId, setRoomId] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [grade, setGrade] = useState('중2');
+  const [grade, setGrade] = useState('');
+  const [autoGradeInfo, setAutoGradeInfo] = useState<{
+    sessionGrade: string | null;
+    currentGrade: string | null;
+    sessionYear: number | null;
+    studentId: string | null;
+    studentName: string | null;
+  } | null>(null);
+  const [autoGradeLoading, setAutoGradeLoading] = useState(false);
+  const [autoGradeError, setAutoGradeError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [summaryResult, setSummaryResult] = useState<any>(null);
   const [previousSummaryResult, setPreviousSummaryResult] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<'full' | 'cards'>('full');
+  const [viewMode, setViewMode] = useState<'full' | 'cards' | 'flashcards'>('full');
   const [testMode, setTestMode] = useState(false);
+  const [showMappedView, setShowMappedView] = useState(false);
+  const [mappedViewMode, setMappedViewMode] = useState<'mapped' | 'stt'>('mapped');
+  const [mappedRoomId, setMappedRoomId] = useState<string | null>(null);
+  const [mappedItems, setMappedItems] = useState<MappedItem[]>([]);
+  const [mappedLoading, setMappedLoading] = useState(false);
+  const [mappedError, setMappedError] = useState<string | null>(null);
+  const [expandedMappedTexts, setExpandedMappedTexts] = useState<Record<string, boolean>>({});
+  const [showMappedOnly, setShowMappedOnly] = useState(true);
+  const [showCurriculumMapping, setShowCurriculumMapping] = useState(false);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [checkedCards, setCheckedCards] = useState<Record<number, boolean>>({});
   const [quizSelection, setQuizSelection] = useState<Record<number, number | null>>({});
   const [cardFlipped, setCardFlipped] = useState<Record<number, boolean>>({});
   const cardScrollRafRef = useRef<number | null>(null);
   const reviewProgramIdParam = searchParams.get('reviewProgramId');
+
+  useEffect(() => {
+    setShowMappedView(false);
+    setMappedRoomId(null);
+    setMappedItems([]);
+    setMappedError(null);
+    setMappedLoading(false);
+  }, [summaryResult?.roomId]);
+
+  useEffect(() => {
+    const targetRoomId = summaryResult?.roomId || roomId.trim();
+    if (!showMappedView || !targetRoomId) return;
+    if (mappedRoomId === targetRoomId && mappedItems.length > 0) return;
+
+    const controller = new AbortController();
+    const loadMapped = async () => {
+      try {
+        setMappedLoading(true);
+        setMappedError(null);
+
+        const res = await fetch('/api/admin/room-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId: targetRoomId }),
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || '매핑 데이터를 불러오지 못했습니다.');
+        }
+        const items = Array.isArray(data?.mappedItems) ? data.mappedItems : [];
+        setMappedItems(items);
+        setMappedRoomId(targetRoomId);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        setMappedItems([]);
+        setMappedError(err?.message || '매핑 데이터를 불러오지 못했습니다.');
+      } finally {
+        if (!controller.signal.aborted) {
+          setMappedLoading(false);
+        }
+      }
+    };
+
+    loadMapped();
+
+    return () => {
+      controller.abort();
+    };
+  }, [showMappedView, summaryResult?.roomId, roomId, mappedRoomId, mappedItems.length]);
+
+  useEffect(() => {
+    const trimmedRoomId = roomId.trim();
+    if (!trimmedRoomId) {
+      setAutoGradeInfo(null);
+      setAutoGradeError(null);
+      setAutoGradeLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        setAutoGradeLoading(true);
+        setAutoGradeError(null);
+
+        const res = await fetch(
+          `/api/lecture/grade?roomId=${encodeURIComponent(trimmedRoomId)}`,
+          { signal: controller.signal }
+        );
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || '학년 자동 조회 실패');
+        }
+
+        setAutoGradeInfo({
+          sessionGrade: data?.sessionGrade || null,
+          currentGrade: data?.currentGrade || null,
+          sessionYear: typeof data?.sessionYear === 'number' ? data.sessionYear : null,
+          studentId: data?.studentId || null,
+          studentName: data?.studentName || null,
+        });
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        setAutoGradeInfo(null);
+        setAutoGradeError(err?.message || '학년 자동 조회 실패');
+      } finally {
+        if (!controller.signal.aborted) {
+          setAutoGradeLoading(false);
+        }
+      }
+    }, 600);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [roomId]);
 
   const generateSummary = async (forcePromptRefresh = false) => {
     if (!roomId.trim()) {
@@ -583,7 +705,7 @@ function LectureSummaryPage() {
         const rp = data.summary;
         const normalizedSummary = normalizeSummaryObject(rp.reviewContent || {});
         setRoomId(rp.metadata?.roomId || '');
-        setGrade(rp.grade || '중2');
+        setGrade(rp.grade || '');
         setSummaryResult({
           reviewProgramId: rp._id?.toString?.() || reviewProgramIdParam,
           roomId: rp.metadata?.roomId || null,
@@ -654,12 +776,19 @@ function LectureSummaryPage() {
     (count, card, idx) => (card.checkable && checkedCards[idx] ? count + 1 : count),
     0
   );
+  const displayGradeLabel =
+    grade || autoGradeInfo?.sessionGrade || autoGradeInfo?.currentGrade || '';
 
   return (
     <div className={styles.container}>
       <header className={styles.header}>
         <Link href="/admin" className={styles.backBtn}>← 뒤로</Link>
-        <h1 className={styles.title}>✨ 따끈따끈 요약본 생성</h1>
+        <h1 className={styles.title}>
+          ✨ 따끈따끈 요약본 생성
+          {displayGradeLabel ? (
+            <span className={styles.gradeBadge}>{displayGradeLabel}</span>
+          ) : null}
+        </h1>
         <p className={styles.subtitle}>Room ID로 수업 STT와 교재 이미지를 결합하여 10분 컷 요약본을 생성합니다.</p>
       </header>
 
@@ -698,6 +827,7 @@ function LectureSummaryPage() {
                     onChange={(e) => setGrade(e.target.value)}
                     disabled={isGenerating}
                   >
+                    <option value="">자동 (학년 매핑)</option>
                     <option value="초1">초1</option>
                     <option value="초2">초2</option>
                     <option value="초3">초3</option>
@@ -716,6 +846,19 @@ function LectureSummaryPage() {
                   <p className={styles.hint}>
                     학년을 선택하면 요약본 난이도와 예시가 더 맞춤화됩니다.
                   </p>
+                  {autoGradeLoading ? (
+                    <p className={styles.hint}>자동 학년 매핑 조회 중...</p>
+                  ) : autoGradeError ? (
+                    <p className={styles.hint}>자동 학년 매핑 실패: {autoGradeError}</p>
+                    ) : autoGradeInfo?.sessionGrade || autoGradeInfo?.currentGrade ? (
+                    <p className={styles.hint}>
+                      자동 매핑 결과: 현재 {autoGradeInfo.currentGrade || '-'}, 수업 당시 {autoGradeInfo.sessionGrade || '-'}
+                      {autoGradeInfo.sessionYear ? ` (수업년도 ${autoGradeInfo.sessionYear})` : ''}
+                      {autoGradeInfo.studentId ? ` · 학생 ID ${autoGradeInfo.studentId}` : ''}
+                    </p>
+                  ) : autoGradeInfo ? (
+                    <p className={styles.hint}>자동 매핑 결과 없음</p>
+                  ) : null}
                 </div>
                 <div className={styles.toggleRow}>
                   <label className={styles.toggleLabel}>
@@ -745,7 +888,9 @@ function LectureSummaryPage() {
                   ) : (
                     <>
                       <span>✨</span>
-                      <span>따끈따끈 요약본 생성</span>
+                      <span>
+                        따끈따끈 요약본 생성{displayGradeLabel ? ` (${displayGradeLabel})` : ''}
+                      </span>
                     </>
                   )}
                 </button>
@@ -801,7 +946,7 @@ function LectureSummaryPage() {
 
             <div className={styles.summaryContent}>
               {/* 학생 정보 */}
-              {(summaryResult.studentName || summaryResult.studentId) && (
+              {(summaryResult.studentName || summaryResult.studentId || autoGradeInfo?.currentGrade || autoGradeInfo?.sessionGrade) && (
                 <div className={styles.studentInfo}>
                   {summaryResult.studentName && (
                     <span className={styles.studentName}>👤 {summaryResult.studentName}</span>
@@ -809,56 +954,19 @@ function LectureSummaryPage() {
                   {summaryResult.studentId && (
                     <span className={styles.studentId}>ID: {summaryResult.studentId}</span>
                   )}
-                </div>
-              )}
-
-              {summaryResult.curriculumReference && (
-                <div className={styles.curriculumSection}>
-                  <h5>📚 커리큘럼 참고</h5>
-                  <div className={styles.curriculumMeta}>
-                    <span>학년: {summaryResult.curriculumReference.gradeLabel || '미지정'}</span>
-                    <span>과목: {summaryResult.curriculumReference.subject || '미지정'}</span>
-                  </div>
-                  {Array.isArray(summaryResult.curriculumReference.matches) &&
-                  summaryResult.curriculumReference.matches.length > 0 ? (
-                    <ol className={styles.curriculumList}>
-                      {summaryResult.curriculumReference.matches.map((match: any, idx: number) => (
-                        <li key={`${match.course}-${match.subunitTitle}-${idx}`} className={styles.curriculumItem}>
-                          <div className={styles.curriculumItemTitle}>
-                            {(match.course || match.unitTitle || '단원') + ' > ' + (match.subunitTitle || '소단원')}
-                          </div>
-                          {match.concepts && match.concepts.length > 0 && (
-                            <div className={styles.curriculumItemMeta}>
-                              핵심 개념: {match.concepts.slice(0, 6).join(', ')}
-                            </div>
-                          )}
-                          {match.matchedKeywords && match.matchedKeywords.length > 0 && (
-                            <div className={styles.curriculumItemMeta}>
-                              매칭 키워드: {match.matchedKeywords.slice(0, 6).join(', ')}
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className={styles.curriculumEmpty}>일치하는 키워드가 없습니다.</p>
+                  {autoGradeInfo?.currentGrade && (
+                    <span className={styles.studentId}>현재 학년: {autoGradeInfo.currentGrade}</span>
+                  )}
+                  {(autoGradeInfo?.sessionGrade || summaryResult.curriculumReference?.gradeLabel) && (
+                    <span className={styles.studentId}>
+                      수업 당시 학년: {autoGradeInfo?.sessionGrade || summaryResult.curriculumReference?.gradeLabel}
+                    </span>
                   )}
                 </div>
               )}
 
               <div className={styles.summaryHeader}>
-                <h4>{summaryResult.summary?.title || '[유은서 쌤이 방금 만든 따끈따끈한 비법 노트!]'}</h4>
-                {summaryResult.reviewProgramId && (
-                  <p className={styles.summaryLink}>
-                    <a 
-                      href={`/admin/lecture-summary?reviewProgramId=${summaryResult.reviewProgramId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      전체 보기 →
-                    </a>
-                  </p>
-                )}
+                
               </div>
 
               <div className={styles.viewToggle}>
@@ -866,13 +974,19 @@ function LectureSummaryPage() {
                   className={`${styles.toggleBtn} ${viewMode === 'full' ? styles.toggleBtnActive : ''}`}
                   onClick={() => setViewMode('full')}
                 >
-                  전체 보기
+                  요약 보기
                 </button>
                 <button
                   className={`${styles.toggleBtn} ${viewMode === 'cards' ? styles.toggleBtnActive : ''}`}
                   onClick={() => setViewMode('cards')}
                 >
                   카드뉴스 보기
+                </button>
+                <button
+                  className={`${styles.toggleBtn} ${viewMode === 'flashcards' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => setViewMode('flashcards')}
+                >
+                  플래시카드 보기
                 </button>
               </div>
 
@@ -1011,6 +1125,37 @@ function LectureSummaryPage() {
                 </div>
               )}
 
+              {viewMode === 'flashcards' && (
+                <div className={styles.flashcardWrapper}>
+                  <FlashcardStudyMode
+                    summaryText={(() => {
+                      const content =
+                        summaryResult.summary?.detailedContent ||
+                        summaryResult.summary?.conceptSummary ||
+                        '';
+                      if (typeof content === 'string') {
+                        const trimmed = content.trim();
+                        if (
+                          (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+                          (trimmed.startsWith('[') && trimmed.endsWith(']'))
+                        ) {
+                          try {
+                            const parsed = JSON.parse(trimmed);
+                            return typeof parsed === 'string' ? parsed : content;
+                          } catch {
+                            return content;
+                          }
+                        }
+                        return content
+                          .replace(/^이것만 꼭 알아둬!?\s*/i, '')
+                          .replace(/^📖?\s*오늘\s*수업\s*핵심\s*정리\s*/i, '');
+                      }
+                      return JSON.stringify(content);
+                    })()}
+                  />
+                </div>
+              )}
+
               {testMode && previousSummaryResult?.summary && summaryResult?.summary && (
                 <div className={styles.compareSection}>
                   <h4 className={styles.compareTitle}>🧪 프롬프트 수정 전/후 비교</h4>
@@ -1095,23 +1240,181 @@ function LectureSummaryPage() {
                 </div>
               )}
 
-              {viewMode === 'full' && summaryResult.imagesUsed && summaryResult.imagesUsed.length > 0 && (
-                <div className={styles.textbookHighlight}>
-                  <h5>🖼️ 수업 교재 이미지</h5>
-                  <div className={styles.imageGrid}>
-                    {summaryResult.imagesUsed.map((url: string, idx: number) => (
-                      <a
-                        key={idx}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.imageItem}
+              {viewMode === 'full' && (summaryResult.roomId || roomId.trim()) && (
+                <div className={styles.mappedSection}>
+                  <div className={styles.mappedHeaderRow}>
+                    <h5>🧩 이미지-텍스트 매핑</h5>
+                    <div className={styles.mappedHeaderActions}>
+                      <button
+                        type="button"
+                        className={styles.mappedToggle}
+                        onClick={() => setShowMappedView((prev) => !prev)}
                       >
-                        <img src={url} alt={`교재 이미지 ${idx + 1}`} />
-                        <span>이미지 {idx + 1}</span>
-                      </a>
-                    ))}
+                        {showMappedView ? '숨기기' : '열기'}
+                      </button>
+                      {showMappedView && (
+                        <div className={styles.mappedModeToggle}>
+                          <button
+                            type="button"
+                            className={
+                              mappedViewMode === 'mapped'
+                                ? styles.mappedModeActive
+                                : styles.mappedModeButton
+                            }
+                            onClick={() => setMappedViewMode('mapped')}
+                          >
+                            맵핑 보기
+                          </button>
+                          <button
+                            type="button"
+                            className={
+                              mappedViewMode === 'stt'
+                                ? styles.mappedModeActive
+                                : styles.mappedModeButton
+                            }
+                            onClick={() => setMappedViewMode('stt')}
+                          >
+                            STT만 보기
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  <p className={styles.hint}>
+                    기본 화면에서는 교재 이미지를 숨깁니다. 맵핑 보기에서만 이미지와 텍스트의 연결을 확인할 수 있어요.
+                  </p>
+                  {showMappedView && (
+                    <div className={styles.mappedBody}>
+                      {mappedLoading ? (
+                        <p className={styles.hint}>매핑 데이터를 불러오는 중...</p>
+                      ) : mappedError ? (
+                        <p className={styles.hint}>매핑 실패: {mappedError}</p>
+                      ) : mappedItems.length === 0 ? (
+                        <p className={styles.hint}>매핑된 데이터가 없습니다.</p>
+                      ) : mappedViewMode === 'mapped' ? (
+                        <div className={styles.mappedList}>
+                          <div className={styles.mappedFilters}>
+                            <label className={styles.mappedFilterLabel}>
+                              <input
+                                type="checkbox"
+                                checked={!showMappedOnly}
+                                onChange={(e) => setShowMappedOnly(!e.target.checked)}
+                              />
+                              매핑 안된 것까지 모두 보기
+                            </label>
+                          </div>
+                          {(showMappedOnly
+                            ? mappedItems.filter((item) => item.texts && item.texts.length > 0)
+                            : mappedItems
+                          ).map((item, idx) => {
+                            const key = `${item.imageUrl}-${idx}`;
+                            const isExpanded = !!expandedMappedTexts[key];
+                            const visibleTexts = isExpanded ? item.texts : item.texts.slice(0, 6);
+                            return (
+                            <div key={key} className={styles.mappedCard}>
+                              <img
+                                src={item.imageUrl}
+                                alt={`매핑 이미지 ${idx + 1}`}
+                                className={styles.mappedImage}
+                              />
+                              <div className={styles.mappedContent}>
+                                <div className={styles.mappedMeta}>
+                                  <span>
+                                    타임스탬프:{' '}
+                                    {new Date(item.timestamp * 1000).toLocaleString('ko-KR', {
+                                      timeZone: 'Asia/Seoul',
+                                    })}
+                                  </span>
+                                  <span>텍스트 {item.texts.length}개</span>
+                                </div>
+                                {item.texts.length > 0 ? (
+                                  <div className={styles.mappedTexts}>
+                                    {visibleTexts.map((text, tIdx) => (
+                                      <div key={`${idx}-text-${tIdx}`} className={styles.mappedTextItem}>
+                                        <span className={styles.mappedSpeaker}>{text.speaker}</span>
+                                        <span>{text.text}</span>
+                                      </div>
+                                    ))}
+                                    {item.texts.length > 6 && (
+                                      <button
+                                        type="button"
+                                        className={styles.mappedMore}
+                                        onClick={() =>
+                                          setExpandedMappedTexts((prev) => ({
+                                            ...prev,
+                                            [key]: !isExpanded,
+                                          }))
+                                        }
+                                      >
+                                        {isExpanded
+                                          ? '접기'
+                                          : `외 ${item.texts.length - 6}개 더 보기`}
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className={styles.mappedEmpty}>매핑된 텍스트 없음</div>
+                                )}
+                              </div>
+                            </div>
+                          )})}
+                        </div>
+                      ) : (
+                        <div className={styles.sttOnlyList}>
+                          {mappedItems.flatMap((item) => item.texts).length === 0 ? (
+                            <p className={styles.mappedEmpty}>STT 텍스트가 없습니다.</p>
+                          ) : (
+                            mappedItems
+                              .flatMap((item) => item.texts)
+                              .sort((a, b) => a.timestamp - b.timestamp)
+                              .map((text, idx) => (
+                                <div key={`stt-${idx}`} className={styles.sttOnlyItem}>
+                                  <span className={styles.mappedSpeaker}>{text.speaker}</span>
+                                  <span>{text.text}</span>
+                                </div>
+                              ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {viewMode === 'full' && summaryResult.curriculumReference && (
+                <div className={styles.mappedSection}>
+                  <div className={styles.mappedHeaderRow}>
+                    <h5>📚 커리큘럼 매핑</h5>
+                    <div className={styles.mappedHeaderActions}>
+                      <button
+                        type="button"
+                        className={styles.mappedToggle}
+                        onClick={() => setShowCurriculumMapping((prev) => !prev)}
+                      >
+                        {showCurriculumMapping ? '접기' : '열기'}
+                      </button>
+                    </div>
+                  </div>
+                  {showCurriculumMapping && (
+                    <div className={styles.mappedCurriculum}>
+                      <div className={styles.mappedCurriculumMeta}>
+                        <span>학년: {summaryResult.curriculumReference.gradeLabel || '미지정'}</span>
+                        <span>과목: {summaryResult.curriculumReference.subject || '미지정'}</span>
+                      </div>
+                      {Array.isArray(summaryResult.curriculumReference.matches) &&
+                      summaryResult.curriculumReference.matches.length > 0 ? (
+                        <div className={styles.mappedCurriculumList}>
+                          {summaryResult.curriculumReference.matches.slice(0, 3).map((match: any, idx: number) => (
+                            <div key={`${match.course}-${match.subunitTitle}-${idx}`} className={styles.mappedCurriculumItem}>
+                              {(match.course || match.unitTitle || '단원') + ' > ' + (match.subunitTitle || '소단원')}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={styles.mappedEmpty}>일치하는 커리큘럼 항목 없음</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1120,12 +1423,12 @@ function LectureSummaryPage() {
                 <div className={styles.detailedContent}>
                   <h5>📖 오늘 수업 핵심 정리</h5>
                   <div className={styles.detailedText}>
-                    <MarkdownMath 
-                      content={(() => {
-                        const content = summaryResult.summary?.detailedContent || summaryResult.summary?.conceptSummary || '';
+                    {(() => {
+                      const content = summaryResult.summary?.detailedContent || summaryResult.summary?.conceptSummary || '';
+                      const resolved = (() => {
                         if (typeof content === 'string') {
                           const trimmed = content.trim();
-                          if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+                          if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
                               (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
                             try {
                               const parsed = JSON.parse(trimmed);
@@ -1139,32 +1442,76 @@ function LectureSummaryPage() {
                             .replace(/^📖?\s*오늘\s*수업\s*핵심\s*정리\s*/i, '');
                         }
                         return JSON.stringify(content);
-                      })()}
-                    />
-                  </div>
-                </div>
-              )}
+                      })();
 
-              {viewMode === 'full' && resolveVisualAids(summaryResult.summary?.visualAids).length > 0 && (
-                <div className={styles.visualAidSection}>
-                  <h5>📐 시각 자료</h5>
-                  <div className={styles.visualAidGrid}>
-                    {resolveVisualAids(summaryResult.summary?.visualAids).map((aid: any, idx: number) => {
-                      const title = aid?.title || aid?.name || `시각 자료 ${idx + 1}`;
-                      const description = aid?.description || '';
-                      const shape = aid?.type ? aid : { type: aid?.type || 'geometry', data: aid?.data || aid };
-                      return (
-                        <div key={idx} className={styles.visualAidCard}>
-                          <div className={styles.visualAidHeader}>
-                            <span className={styles.visualAidTitle}>{title}</span>
+                      const sections = splitDetailedContentSections(resolved);
+                      const visualAids = resolveVisualAids(summaryResult.summary?.visualAids);
+                      const usedAidIndexes = new Set<number>();
+
+                      const matchAidsForSection = (title: string | null) => {
+                        if (!visualAids.length) return [];
+                        if (!title) return [];
+                        const normalizedTitle = normalizeTitleText(title);
+                        return visualAids.filter((aid: any, idx: number) => {
+                          if (usedAidIndexes.has(idx)) return false;
+                          const aidTitle = aid?.title || aid?.name || '';
+                          if (!aidTitle) return false;
+                          const normalizedAid = normalizeTitleText(String(aidTitle));
+                          return normalizedTitle.includes(normalizedAid) || normalizedAid.includes(normalizedTitle);
+                        });
+                      };
+
+                      return sections.map((section, index) => {
+                        const matchedAids = matchAidsForSection(section.title);
+                        matchedAids.forEach((aid: any) => {
+                          const aidIndex = visualAids.indexOf(aid);
+                          if (aidIndex >= 0) usedAidIndexes.add(aidIndex);
+                        });
+
+                        const sectionAids =
+                          section.title
+                            ? matchedAids
+                            : sections.length === 1
+                            ? visualAids
+                            : [];
+
+                        return (
+                          <div key={`${section.title || 'section'}-${index}`} className={styles.sectionBlock}>
+                            {section.title && (
+                              <div className={styles.sectionTitle}>
+                                <MarkdownMath content={`### ${section.title}`} />
+                              </div>
+                            )}
+                            {section.body && (
+                              <MarkdownMath content={section.body} />
+                            )}
+                            {sectionAids.length > 0 && (
+                              <div className={styles.sectionVisualAids}>
+                                <div className={styles.visualAidGrid}>
+                                  {sectionAids.map((aid: any, idx: number) => {
+                                    const title = aid?.title || aid?.name || `시각 자료 ${idx + 1}`;
+                                    const description = aid?.description || '';
+                                    const shape = aid?.type ? aid : { type: aid?.type || 'geometry', data: aid?.data || aid };
+                                    const isTable = aid?.type === 'table' || shape?.type === 'table';
+                                    return (
+                                      <div key={`${section.title || 'section'}-aid-${idx}`} className={styles.visualAidCard}>
+                                        <div className={styles.visualAidHeader}>
+                                          <span className={styles.visualAidTitle}>{title}</span>
+                                        </div>
+                                        {description && !isTable && <p className={styles.visualAidDescription}>{description}</p>}
+                                        <div className={styles.visualAidCanvas}>
+                                          <VisualAidRenderer shape={shape} />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          {description && <p className={styles.visualAidDescription}>{description}</p>}
-                          <div className={styles.visualAidCanvas}>
-                            <VisualAidRenderer shape={shape} />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}
@@ -1201,33 +1548,39 @@ function LectureSummaryPage() {
                   <h5>❓ 학생 질문 정리</h5>
                   {summaryResult.summary.missedParts.map((part: any, idx: number) => (
                     <div key={idx} className={styles.missedPartItem}>
-                      <p className={styles.missedQuestion}>
-                        <strong>질문:</strong> {part.question}
-                      </p>
+                      <div className={styles.missedQuestion}>
+                        <strong>질문:</strong>{' '}
+                        <MarkdownMath content={String(part.question || '')} />
+                      </div>
                       {part.contextMeaning && (
-                        <p className={styles.missedExplanation}>
-                          <strong>문맥:</strong> {part.contextMeaning}
-                        </p>
+                        <div className={styles.missedExplanation}>
+                          <strong>문맥:</strong>{' '}
+                          <MarkdownMath content={String(part.contextMeaning || '')} />
+                        </div>
                       )}
                       {part.whatNotUnderstood && (
-                        <p className={styles.missedExplanation}>
-                          <strong>모르던 부분:</strong> {part.whatNotUnderstood}
-                        </p>
+                        <div className={styles.missedExplanation}>
+                          <strong>모르던 부분:</strong>{' '}
+                          <MarkdownMath content={String(part.whatNotUnderstood || '')} />
+                        </div>
                       )}
                       {part.whatToKnow && (
-                        <p className={styles.missedExplanation}>
-                          <strong>알아야 할 것:</strong> {part.whatToKnow}
-                        </p>
+                        <div className={styles.missedExplanation}>
+                          <strong>알아야 할 것:</strong>{' '}
+                          <MarkdownMath content={String(part.whatToKnow || '')} />
+                        </div>
                       )}
                       {part.explanation && (
-                        <p className={styles.missedExplanation}>
-                          <strong>설명:</strong> {part.explanation}
-                        </p>
+                        <div className={styles.missedExplanation}>
+                          <strong>설명:</strong>{' '}
+                          <MarkdownMath content={String(part.explanation || '')} />
+                        </div>
                       )}
                       {part.learningValue && (
-                        <p className={styles.missedExplanation}>
-                          <strong>학습적 의미:</strong> {part.learningValue}
-                        </p>
+                        <div className={styles.missedExplanation}>
+                          <strong>학습적 의미:</strong>{' '}
+                          <MarkdownMath content={String(part.learningValue || '')} />
+                        </div>
                       )}
                     </div>
                   ))}

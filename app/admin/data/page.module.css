@@ -52,6 +52,97 @@
   margin-bottom: 32px;
 }
 
+.csvCard {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.csvInfo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.csvLabel {
+  font-size: 12px;
+  color: #9aa0a6;
+  margin-bottom: 6px;
+}
+
+.csvValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e0f7fa;
+}
+
+.csvPath {
+  font-size: 12px;
+  color: #b0bec5;
+  word-break: break-all;
+}
+
+.csvWarn {
+  background: rgba(255, 193, 7, 0.15);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  color: #ffd54f;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.csvHint {
+  font-size: 12px;
+  color: #90a4ae;
+  margin-bottom: 16px;
+}
+
+.csvUpload {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.csvInput {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: white;
+  font-size: 12px;
+}
+
+.csvUploadBtn {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #42a5f5 0%, #1e88e5 100%);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.csvUploadBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.csvUploadBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.csvError {
+  color: #ef5350;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
 .sectionTitle {
   font-size: 18px;
   font-weight: 600;

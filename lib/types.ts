@@ -395,3 +395,60 @@ export interface ReviewProgram {
   };
 }
 
+// ==========================================
+// 📊 시각화 스키마 (그래프 및 표)
+// ==========================================
+
+// Mermaid 그래프 노드
+export interface MermaidNode {
+  id: string; // Node1, Node2 등
+  label: string; // 노드에 표시될 텍스트 (특수문자 제거, 언더바 사용)
+}
+
+// Mermaid 그래프 연결선
+export interface MermaidEdge {
+  from: string; // 시작 노드 ID
+  to: string; // 끝 노드 ID
+  label?: string; // 연결선 레이블 (선택적)
+}
+
+// Mermaid 그래프 스키마
+export interface GraphSchema {
+  type: 'mermaid';
+  graphType: 'TD' | 'LR' | 'TB' | 'RL'; // graph TD, graph LR 등
+  nodes: MermaidNode[];
+  edges: MermaidEdge[];
+  title?: string; // 그래프 제목 (선택적)
+}
+
+// 표 셀
+export interface TableCell {
+  content: string; // 셀 내용 (Markdown/LaTeX 지원)
+  align?: 'left' | 'center' | 'right'; // 정렬 (선택적)
+  colspan?: number; // 열 병합 (선택적)
+  rowspan?: number; // 행 병합 (선택적)
+}
+
+// 표 행
+export interface TableRow {
+  cells: TableCell[];
+  isHeader?: boolean; // 헤더 행 여부
+}
+
+// 표 스키마
+export interface TableSchema {
+  type: 'table';
+  headers?: string[]; // 헤더 행 (간단한 경우)
+  rows: TableRow[]; // 표 행들
+  caption?: string; // 표 제목 (선택적)
+  align?: 'left' | 'center' | 'right'; // 전체 정렬 (선택적)
+}
+
+// 통합 시각화 스키마
+export type VisualizationSchema = GraphSchema | TableSchema;
+
+// 시각화 데이터 (요약본에 포함)
+export interface VisualizationData {
+  visualizations?: VisualizationSchema[]; // 그래프 및 표 배열
+}
+
