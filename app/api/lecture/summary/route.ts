@@ -10,6 +10,7 @@ import { buildCurriculumHint, buildCurriculumReference } from '@/lib/curriculum/
 import { splitConversationsIntoSections, getSectionSttText, type Section } from '@/lib/section-splitter';
 import { getGradeByUserNo } from '@/lib/student-grade-matcher';
 import { getKSTYear, getCurrentKSTYear, formatKSTDate } from '@/lib/time-utils';
+import { generateWithLimiter } from '@/lib/gemini-rate-limiter';
 
 // Lecture Analysis Pipeline API Base URL
 const LECTURE_API_BASE_URL = 
@@ -922,7 +923,7 @@ ${sttText.substring(0, 800)}
 
           const analysisPromises = downloadedImages.map(async ({ url, imageData }) => {
             try {
-              const analysisResult = await analysisModel.generateContent({
+              const analysisResult = await generateWithLimiter(analysisModel, {
                 contents: [{
                   role: 'user',
                   parts: [
@@ -1037,7 +1038,7 @@ ${sttSummary}${conceptKeywords}
           // 🚀 최적화 3: 이미지 관련성 분석을 병렬 처리
           const analysisPromises = downloadedImages.map(async ({ url, imageData }) => {
             try {
-              const analysisResult = await analysisModel.generateContent({
+              const analysisResult = await generateWithLimiter(analysisModel, {
                 contents: [{
                   role: 'user',
                   parts: [
@@ -1239,7 +1240,7 @@ ${sttSummary}${conceptKeywords}
         }
 
         try {
-          const sectionResult = await model.generateContent({
+          const sectionResult = await generateWithLimiter(model, {
             contents: [{ role: 'user', parts: sectionParts }],
           });
 
@@ -1319,7 +1320,7 @@ ${sectionSummaries.map((s, idx) => `
 - 원본 섹션 요약의 구조를 최대한 유지`;
 
         // 통합 요약 생성
-        const integrationResult = await model.generateContent({
+        const integrationResult = await generateWithLimiter(model, {
           contents: [{ role: 'user', parts: [{ text: integrationPrompt }] }],
         });
 
@@ -1363,7 +1364,7 @@ ${sectionSummaries.map((s, idx) => `
         console.log(`[lecture/summary] 📤 Gemini API 호출 시작 (프롬프트 길이: ${prompt.length}자, 이미지: ${imagesToUse.length}개)`);
       }
 
-      const result = await model.generateContent({
+      const result = await generateWithLimiter(model, {
         contents: [{ role: 'user', parts }],
       });
 

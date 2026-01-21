@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { generateWithLimiter } from '@/lib/gemini-rate-limiter';
 
 type TutorType = 'rangsam' | 'joonssam';
 
@@ -130,7 +131,7 @@ ${analysis.priorityMarkers?.length > 0 ? `
               },
             ];
 
-            const result = await model.generateContent({
+            const result = await generateWithLimiter(model, {
               contents: [{ role: 'user', parts }],
             });
 
@@ -161,7 +162,7 @@ ${analysis.priorityMarkers?.length > 0 ? `
 
     prompt += `\n위 상황을 바탕으로 ${tutorName}의 말투로 친근하게 응답해주세요. 학생이 이해하기 쉽도록 단계별로 설명하거나 힌트를 주세요.`;
 
-    const result = await model.generateContent({
+    const result = await generateWithLimiter(model, {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
     });
 

@@ -5,6 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { generateWithLimiter } from '@/lib/gemini-rate-limiter';
 
 // POST /api/tutor/intervention - AI 튜터 개입 (1차/2차/탈출구)
 export async function POST(req: NextRequest) {
@@ -210,7 +211,7 @@ ${problem.problemText || '문제 이미지를 확인해주세요.'}
 
     parts.push({ text: prompt });
 
-    const result = await model.generateContent({
+    const result = await generateWithLimiter(model, {
       contents: [{ role: 'user', parts }],
     });
 

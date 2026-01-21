@@ -397,6 +397,9 @@ function renderContent(text: string): string {
   // LaTeX escape 복구 (rac → \frac 등)
   let result = restoreLatexEscapes(processedText)
 
+  // 이모지 프레젠테이션 보정 (텍스트 글리프가 아닌 컬러 이모지로 렌더링)
+  result = result.replace(/\u26A0(?!\uFE0F)/g, '\u26A0\uFE0F')
+
   // (주의) 개발 중 디버그 로그는 렌더링 노이즈가 커서 비활성화
 
   // 0. 코드 블록 보호 (먼저 처리)

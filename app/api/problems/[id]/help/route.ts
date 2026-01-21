@@ -11,6 +11,7 @@ import {
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { generateWithLimiter } from '@/lib/gemini-rate-limiter';
 
 // POST /api/problems/:id/help?step=1..4 - 단계별 힌트 제공
 export async function POST(
@@ -193,7 +194,7 @@ export async function POST(
 
     parts.push({ text: prompt });
 
-    const result = await model.generateContent({
+    const result = await generateWithLimiter(model, {
       contents: [{ role: 'user', parts }],
     });
 

@@ -8,6 +8,7 @@
  */
 
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { generateWithLimiter } from '@/lib/gemini-rate-limiter';
 
 // 안전 설정
 const safetySettings = [
@@ -154,7 +155,7 @@ ${strategy}
 `.trim();
 
   try {
-    const result = await model.generateContent(prompt);
+    const result = await generateWithLimiter(model, prompt);
     const text = result.response.text();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     
@@ -272,7 +273,7 @@ ${context ? `[추가 컨텍스트/조건]\n${context}` : ''}
 `.trim();
 
   try {
-    const result = await model.generateContent(prompt);
+    const result = await generateWithLimiter(model, prompt);
     const text = result.response.text();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     

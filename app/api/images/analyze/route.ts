@@ -5,6 +5,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { generateWithLimiter } from '@/lib/gemini-rate-limiter';
 
 function guessSubjectFromText(text: string): string {
   const t = (text || '').toLowerCase();
@@ -283,7 +284,7 @@ export async function POST(req: NextRequest) {
 
     const tryGenerate = async (m: any) => {
       try {
-        const r = await m.generateContent({
+        const r = await generateWithLimiter(m, {
           contents: [
             {
               role: 'user',
@@ -450,7 +451,7 @@ ${analysis.extractedText.slice(0, 2000)}${analysis.extractedText.length > 2000 ?
           },
         });
 
-        const verificationResult = await verificationModel.generateContent({
+        const verificationResult = await generateWithLimiter(verificationModel, {
           contents: [
             {
               role: 'user',

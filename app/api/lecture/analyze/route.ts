@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { loadCorrectAndParseStt, parseJsonWithFallback } from '@/lib/stt-utils';
+import { generateWithLimiter } from '@/lib/gemini-rate-limiter';
 
 const LECTURE_API_BASE_URL = 
   process.env.LECTURE_API_BASE_URL || 
@@ -120,7 +121,7 @@ ${conversationText}
 
 JSON만 응답하세요. 다른 텍스트나 설명은 불필요합니다. **반드시 한국어로 작성하세요.**`;
 
-    const result = await model.generateContent({
+    const result = await generateWithLimiter(model, {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
     });
 

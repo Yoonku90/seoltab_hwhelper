@@ -6,6 +6,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { generateWithLimiter } from '@/lib/gemini-rate-limiter';
 
 const GEMINI_SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -277,7 +278,7 @@ ${conversations
 - **새로운 내용 추가 금지** (추측/각색/요약 금지)
 - 한국어로 출력`;
 
-    const correctionResult = await correctionModel.generateContent({
+    const correctionResult = await generateWithLimiter(correctionModel, {
       contents: [{ role: 'user', parts: [{ text: correctionPrompt }] }],
     });
 
@@ -327,7 +328,7 @@ ${conversations.map((conv, idx) => `[${idx + 1}] ${conv.speaker}: ${conv.text}`)
         },
       });
 
-      const retryResult = await retryModel.generateContent({
+      const retryResult = await generateWithLimiter(retryModel, {
         contents: [{ role: 'user', parts: [{ text: retryPrompt }] }],
       });
 
