@@ -1175,6 +1175,22 @@
   color: #111827;
   margin: 6px 0 10px;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sectionTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #7b1fa2;
+  background: #f3e5f5;
+  border: 1px solid #e0c9f1;
+  white-space: nowrap;
 }
 
 .sectionVisualAids {

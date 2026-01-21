@@ -306,8 +306,89 @@ export async function POST(req: NextRequest) {
     // genAI 초기화 (STT 보정에 사용)
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // lecture/summary는 limiter 우회 (속도 최우선)
-    const generateWithoutLimiter = (model: any, ...args: any[]) => model.generateContent(...args);
+    // lecture/summary 전용: RPM 한도(150/min)만 피하는 가벼운 스케줄러
+    const RPM_LIMIT = Number(process.env.GEMINI_SUMMARY_RPM_LIMIT ?? 150);
+    const RPM_WINDOW_MS = 60_000;
+    const rpmTimestamps: number[] = [];
+
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const scheduleWithinRpm = async () => {
+      if (RPM_LIMIT <= 0) return;
+      while (true) {
+        const now = Date.now();
+        while (rpmTimestamps.length > 0 && now - rpmTimestamps[0] >= RPM_WINDOW_MS) {
+          rpmTimestamps.shift();
+        }
+        if (rpmTimestamps.length < RPM_LIMIT) {
+          rpmTimestamps.push(now);
+          return;
+        }
+        const waitMs = Math.max(250, RPM_WINDOW_MS - (now - rpmTimestamps[0]) + 50);
+        await sleep(waitMs);
+      }
+    };
+
+    const parseRetryDelayMs = (message: string) => {
+      const match = message.match(/retry in\s+([\d.]+)s/i) || message.match(/"retryDelay":"(\d+)s"/i);
+      if (!match) return null;
+      const seconds = Number(match[1]);
+      return Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds * 1000)) : null;
+    };
+
+    const llmCallCountByLabel: Record<string, number> = {};
+    const tokenUsage = { promptTokens: 0, responseTokens: 0, totalTokens: 0 };
+    const timings: Record<string, number> = {};
+    const startedAt = Date.now();
+    let llmCallCount = 0;
+
+    const recordUsage = (result: any) => {
+      const usage = result?.response?.usageMetadata ?? result?.usageMetadata;
+      if (!usage) return;
+      const promptTokens = Number(
+        usage.promptTokenCount ?? usage.inputTokenCount ?? usage.promptTokens ?? 0
+      );
+      const responseTokens = Number(
+        usage.candidatesTokenCount ?? usage.outputTokenCount ?? usage.completionTokenCount ?? 0
+      );
+      const totalTokens = Number(
+        usage.totalTokenCount ?? usage.totalTokens ?? promptTokens + responseTokens
+      );
+      if (Number.isFinite(promptTokens)) tokenUsage.promptTokens += promptTokens;
+      if (Number.isFinite(responseTokens)) tokenUsage.responseTokens += responseTokens;
+      if (Number.isFinite(totalTokens)) tokenUsage.totalTokens += totalTokens;
+    };
+
+    const generateWithoutLimiter = async (model: any, payload: any, label?: string) => {
+      if (label) {
+        llmCallCountByLabel[label] = (llmCallCountByLabel[label] ?? 0) + 1;
+      }
+      llmCallCount += 1;
+      const started = Date.now();
+      await scheduleWithinRpm();
+      try {
+        const result = await model.generateContent(payload);
+        if (label) {
+          timings[label] = (timings[label] ?? 0) + (Date.now() - started);
+        }
+        recordUsage(result);
+        return result;
+      } catch (error: any) {
+        const msg = String(error?.message || '');
+        if (msg.includes('Quota exceeded') || msg.includes('rate limit')) {
+          const retryMs = parseRetryDelayMs(msg) ?? 2000;
+          await sleep(retryMs);
+          await scheduleWithinRpm();
+          const result = await model.generateContent(payload);
+          if (label) {
+            timings[label] = (timings[label] ?? 0) + (Date.now() - started);
+          }
+          recordUsage(result);
+          return result;
+        }
+        throw error;
+      }
+    };
 
     // 🚀 최적화 1: 병렬 처리 - Room metadata, STT, 이미지, 학생 정보를 동시에 로드
     const isDevelopment = process.env.NODE_ENV === 'development';
@@ -938,7 +1019,7 @@ ${sttText.substring(0, 800)}
                     { text: counselingPrompt },
                   ],
                 }],
-              });
+              }, 'image-analysis');
 
               const analysisText = analysisResult.response.text();
               const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
@@ -1053,7 +1134,7 @@ ${sttSummary}${conceptKeywords}
                     { text: relevancePrompt },
                   ],
                 }],
-              });
+              }, 'image-relevance');
 
               const analysisText = analysisResult.response.text();
               const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
@@ -1244,7 +1325,7 @@ ${sttSummary}${conceptKeywords}
         try {
           const sectionResult = await generateWithoutLimiter(model, {
             contents: [{ role: 'user', parts: sectionParts }],
-          });
+          }, 'section-summary');
 
           const sectionResponseText = sectionResult.response.text();
           let sectionSummary: any = null;
@@ -1324,7 +1405,7 @@ ${sectionSummaries.map((s, idx) => `
         // 통합 요약 생성
         const integrationResult = await generateWithoutLimiter(model, {
           contents: [{ role: 'user', parts: [{ text: integrationPrompt }] }],
-        });
+        }, 'section-integration');
 
         const integrationResponseText = integrationResult.response.text();
         
@@ -1368,7 +1449,7 @@ ${sectionSummaries.map((s, idx) => `
 
       const result = await generateWithoutLimiter(model, {
         contents: [{ role: 'user', parts }],
-      });
+      }, 'full-summary');
 
       const responseText = result.response.text();
       
@@ -1645,6 +1726,31 @@ ${sectionSummaries.map((s, idx) => `
       imagesInOrder: images,
     };
 
+    const COST_INPUT_UNDER_200K = 1.25;
+    const COST_OUTPUT_UNDER_200K = 10.0;
+    const COST_INPUT_OVER_200K = 2.5;
+    const COST_OUTPUT_OVER_200K = 15.0;
+    const COST_THRESHOLD_TOKENS = 200_000;
+    const totalTokensForCost = tokenUsage.promptTokens + tokenUsage.responseTokens;
+    const isOverThreshold = totalTokensForCost > COST_THRESHOLD_TOKENS;
+    const inputCostPerM = isOverThreshold ? COST_INPUT_OVER_200K : COST_INPUT_UNDER_200K;
+    const outputCostPerM = isOverThreshold ? COST_OUTPUT_OVER_200K : COST_OUTPUT_UNDER_200K;
+    const estimatedCostUsd = Number(
+      (
+        (tokenUsage.promptTokens / 1_000_000) * inputCostPerM +
+        (tokenUsage.responseTokens / 1_000_000) * outputCostPerM
+      ).toFixed(6)
+    );
+
+    const summaryMeta = {
+      llmCallCount,
+      llmCallCountByLabel,
+      tokenUsage,
+      estimatedCostUsd,
+      durationMs: Date.now() - startedAt,
+      timings,
+    };
+
     const reviewProgram = {
       studentId: studentId || 'unknown',
       studentName: studentName || null,
@@ -1667,6 +1773,7 @@ ${sectionSummaries.map((s, idx) => `
         missedPartsCount: missedParts.length,
         isSecretNote: true,
         curriculumReference: curriculumReferenceToUse || null,
+        summaryMeta,
       },
     };
 
@@ -1832,6 +1939,7 @@ ${sectionSummaries.map((s, idx) => `
       studentName: studentName || null,
       studentNickname: studentNickname || null,
       curriculumReference: curriculumReferenceToUse || null,
+      summaryMeta,
     });
   } catch (error: any) {
     console.error('[lecture/summary] ❌ Error:', error);

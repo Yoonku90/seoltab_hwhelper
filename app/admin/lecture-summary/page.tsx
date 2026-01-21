@@ -221,6 +221,13 @@ function normalizeTitleText(value: string): string {
   return value.toLowerCase().replace(/\s+/g, '');
 }
 
+function parseSectionTag(title: string | null): { tag: string | null; text: string } {
+  if (!title) return { tag: null, text: '' };
+  const match = title.match(/^\[([^\]]+)\]\s*(.*)$/);
+  if (!match) return { tag: null, text: title };
+  return { tag: match[1].trim(), text: match[2]?.trim() || '' };
+}
+
 function splitDetailedContentSections(content: string): Array<{ title: string | null; body: string }> {
   const lines = content.split('\n');
   const sections: Array<{ title: string | null; body: string[] }> = [];
@@ -714,6 +721,7 @@ function LectureSummaryPage() {
           summary: normalizedSummary,
           imagesUsed: rp.metadata?.imageUrls || rp.reviewContent?.imagesInOrder || [],
           curriculumReference: rp.metadata?.curriculumReference || null,
+          summaryMeta: rp.metadata?.summaryMeta || null,
         });
       } catch (err: any) {
         console.error('[lecture-summary] 요약본 조회 실패:', err);
@@ -1495,6 +1503,7 @@ function LectureSummaryPage() {
                       }
 
                       return sections.map((section, index) => {
+                        const parsedTitle = parseSectionTag(section.title);
                         const sectionAids = sectionAidsList[index] || [];
 
                         const hasAids = sectionAids.length > 0;
@@ -1505,15 +1514,19 @@ function LectureSummaryPage() {
                           >
                             {section.title && (
                               <div className={styles.sectionTitle}>
-                                <MarkdownMath content={`### ${section.title}`} />
+                                {parsedTitle.tag && (
+                                  <span className={styles.sectionTag}>[{parsedTitle.tag}]</span>
+                                )}
+                                <MarkdownMath content={`### ${parsedTitle.text || section.title}`} />
                               </div>
                             )}
                             {section.body && (
                               <MarkdownMath
                                 content={(() => {
-                                  if (!sectionAids.length) return section.body;
+                                  let body = section.body;
+                                  if (!sectionAids.length) return body;
                                   // 표/시각자료가 바로 이어질 때 구분선은 제거해서 한 덩어리처럼 보이게
-                                  return section.body
+                                  return body
                                     .replace(/\n?\s*([-*_]{3,})\s*$/g, '')
                                     .trimEnd();
                                 })()}
@@ -1645,6 +1658,34 @@ function LectureSummaryPage() {
                 <div className={styles.metaRow}>
                   <strong>Room ID:</strong> {summaryResult.roomId || '없음'}
                 </div>
+                {summaryResult.summaryMeta && (
+                  <>
+                    <div className={styles.metaRow}>
+                      <strong>LLM 호출 수:</strong> {summaryResult.summaryMeta.llmCallCount ?? 0}
+                    </div>
+                    <div className={styles.metaRow}>
+                      <strong>입력 토큰:</strong> {summaryResult.summaryMeta.tokenUsage?.promptTokens ?? 0}
+                    </div>
+                    <div className={styles.metaRow}>
+                      <strong>출력 토큰:</strong> {summaryResult.summaryMeta.tokenUsage?.responseTokens ?? 0}
+                    </div>
+                    <div className={styles.metaRow}>
+                      <strong>총 토큰:</strong> {summaryResult.summaryMeta.tokenUsage?.totalTokens ?? 0}
+                    </div>
+                    <div className={styles.metaRow}>
+                      <strong>예상 비용:</strong>{' '}
+                      {typeof summaryResult.summaryMeta.estimatedCostUsd === 'number'
+                        ? `$${summaryResult.summaryMeta.estimatedCostUsd.toFixed(6)}`
+                        : 'N/A'}
+                    </div>
+                    <div className={styles.metaRow}>
+                      <strong>생성 시간:</strong>{' '}
+                      {typeof summaryResult.summaryMeta.durationMs === 'number'
+                        ? `${Math.round(summaryResult.summaryMeta.durationMs / 1000)}s`
+                        : 'N/A'}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* 학습 완료 및 저장 버튼 */}
