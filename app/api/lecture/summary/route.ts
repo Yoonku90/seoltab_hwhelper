@@ -10,7 +10,6 @@ import { buildCurriculumHint, buildCurriculumReference } from '@/lib/curriculum/
 import { splitConversationsIntoSections, getSectionSttText, type Section } from '@/lib/section-splitter';
 import { getGradeByUserNo } from '@/lib/student-grade-matcher';
 import { getKSTYear, getCurrentKSTYear, formatKSTDate } from '@/lib/time-utils';
-import { generateWithLimiter } from '@/lib/gemini-rate-limiter';
 
 // Lecture Analysis Pipeline API Base URL
 const LECTURE_API_BASE_URL = 
@@ -306,6 +305,9 @@ export async function POST(req: NextRequest) {
 
     // genAI 초기화 (STT 보정에 사용)
     const genAI = new GoogleGenerativeAI(apiKey);
+
+    // lecture/summary는 limiter 우회 (속도 최우선)
+    const generateWithoutLimiter = (model: any, ...args: any[]) => model.generateContent(...args);
 
     // 🚀 최적화 1: 병렬 처리 - Room metadata, STT, 이미지, 학생 정보를 동시에 로드
     const isDevelopment = process.env.NODE_ENV === 'development';
@@ -923,7 +925,7 @@ ${sttText.substring(0, 800)}
 
           const analysisPromises = downloadedImages.map(async ({ url, imageData }) => {
             try {
-              const analysisResult = await generateWithLimiter(analysisModel, {
+              const analysisResult = await generateWithoutLimiter(analysisModel, {
                 contents: [{
                   role: 'user',
                   parts: [
@@ -1038,7 +1040,7 @@ ${sttSummary}${conceptKeywords}
           // 🚀 최적화 3: 이미지 관련성 분석을 병렬 처리
           const analysisPromises = downloadedImages.map(async ({ url, imageData }) => {
             try {
-              const analysisResult = await generateWithLimiter(analysisModel, {
+              const analysisResult = await generateWithoutLimiter(analysisModel, {
                 contents: [{
                   role: 'user',
                   parts: [
@@ -1240,7 +1242,7 @@ ${sttSummary}${conceptKeywords}
         }
 
         try {
-          const sectionResult = await generateWithLimiter(model, {
+          const sectionResult = await generateWithoutLimiter(model, {
             contents: [{ role: 'user', parts: sectionParts }],
           });
 
@@ -1320,7 +1322,7 @@ ${sectionSummaries.map((s, idx) => `
 - 원본 섹션 요약의 구조를 최대한 유지`;
 
         // 통합 요약 생성
-        const integrationResult = await generateWithLimiter(model, {
+        const integrationResult = await generateWithoutLimiter(model, {
           contents: [{ role: 'user', parts: [{ text: integrationPrompt }] }],
         });
 
@@ -1364,7 +1366,7 @@ ${sectionSummaries.map((s, idx) => `
         console.log(`[lecture/summary] 📤 Gemini API 호출 시작 (프롬프트 길이: ${prompt.length}자, 이미지: ${imagesToUse.length}개)`);
       }
 
-      const result = await generateWithLimiter(model, {
+      const result = await generateWithoutLimiter(model, {
         contents: [{ role: 'user', parts }],
       });
 

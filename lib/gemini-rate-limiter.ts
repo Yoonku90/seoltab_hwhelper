@@ -28,6 +28,10 @@ async function schedule<T>(task: () => Promise<T>): Promise<T> {
 }
 
 export function generateWithLimiter(model: GeminiModel, ...args: any[]) {
+  // RPM 제한을 끈 경우: 바로 실행 (직렬 큐 우회)
+  if (MIN_INTERVAL_MS <= 0) {
+    return model.generateContent(...args);
+  }
   return schedule(() => model.generateContent(...args));
 }
 
