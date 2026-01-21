@@ -1497,15 +1497,27 @@ function LectureSummaryPage() {
                       return sections.map((section, index) => {
                         const sectionAids = sectionAidsList[index] || [];
 
+                        const hasAids = sectionAids.length > 0;
                         return (
-                          <div key={`${section.title || 'section'}-${index}`} className={styles.sectionBlock}>
+                          <div
+                            key={`${section.title || 'section'}-${index}`}
+                            className={hasAids ? styles.sectionBlockWithAids : styles.sectionBlock}
+                          >
                             {section.title && (
                               <div className={styles.sectionTitle}>
                                 <MarkdownMath content={`### ${section.title}`} />
                               </div>
                             )}
                             {section.body && (
-                              <MarkdownMath content={section.body} />
+                              <MarkdownMath
+                                content={(() => {
+                                  if (!sectionAids.length) return section.body;
+                                  // 표/시각자료가 바로 이어질 때 구분선은 제거해서 한 덩어리처럼 보이게
+                                  return section.body
+                                    .replace(/\n?\s*([-*_]{3,})\s*$/g, '')
+                                    .trimEnd();
+                                })()}
+                              />
                             )}
                             {sectionAids.length > 0 && (
                               <div className={styles.sectionVisualAids}>
@@ -1516,12 +1528,15 @@ function LectureSummaryPage() {
                                     const shape = aid?.type ? aid : { type: aid?.type || 'geometry', data: aid?.data || aid };
                                     const isTable = aid?.type === 'table' || shape?.type === 'table';
                                     return (
-                                      <div key={`${section.title || 'section'}-aid-${idx}`} className={styles.visualAidCard}>
+                                      <div
+                                        key={`${section.title || 'section'}-aid-${idx}`}
+                                        className={isTable ? styles.visualAidCardTable : styles.visualAidCard}
+                                      >
                                         <div className={styles.visualAidHeader}>
                                           <span className={styles.visualAidTitle}>{title}</span>
                                         </div>
                                         {description && !isTable && <p className={styles.visualAidDescription}>{description}</p>}
-                                        <div className={styles.visualAidCanvas}>
+                                        <div className={isTable ? styles.visualAidCanvasTable : styles.visualAidCanvas}>
                                           <VisualAidRenderer shape={shape} />
                                         </div>
                                       </div>

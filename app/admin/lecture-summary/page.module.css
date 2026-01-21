@@ -1153,6 +1153,12 @@
   margin-bottom: 16px;
 }
 
+.sectionBlockWithAids {
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
 .sectionTitle {
   font-weight: 700;
   color: #111827;
@@ -1162,8 +1168,8 @@
 
 .sectionVisualAids {
   margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed rgba(148, 163, 184, 0.25);
+  padding-top: 0;
+  border-top: none;
 }
 
 .textbookHighlight {
@@ -1566,6 +1572,14 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
+.visualAidCardTable {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
 .visualAidHeader {
   display: flex;
   align-items: center;
@@ -1595,6 +1609,17 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
+}
+
+.visualAidCanvasTable {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: block;
 }
 
 @media (max-width: 1024px) {
