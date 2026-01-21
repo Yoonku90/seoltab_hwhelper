@@ -1605,18 +1605,6 @@ function LectureSummaryPage() {
               )}
 
               <div className={styles.summaryMeta}>
-                {summaryResult.reviewProgramId && (
-                  <div className={styles.metaRow}>
-                    <a 
-                      href={`/admin/lecture-summary?reviewProgramId=${summaryResult.reviewProgramId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.programLink}
-                    >
-                      📝 복습 프로그램으로 이동
-                    </a>
-                  </div>
-                )}
                 <div className={styles.metaRow}>
                   <strong>Room ID:</strong> {summaryResult.roomId || '없음'}
                 </div>
