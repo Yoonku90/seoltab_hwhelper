@@ -1461,19 +1461,41 @@ function LectureSummaryPage() {
                         });
                       };
 
-                      return sections.map((section, index) => {
+                      const initialMatches = sections.map((section) => {
                         const matchedAids = matchAidsForSection(section.title);
                         matchedAids.forEach((aid: any) => {
                           const aidIndex = visualAids.indexOf(aid);
                           if (aidIndex >= 0) usedAidIndexes.add(aidIndex);
                         });
+                        return matchedAids;
+                      });
 
-                        const sectionAids =
-                          section.title
-                            ? matchedAids
-                            : sections.length === 1
-                            ? visualAids
-                            : [];
+                      const remainingAids = visualAids.filter((_, idx) => !usedAidIndexes.has(idx));
+                      const sectionAidsList = initialMatches.map((aids) => [...aids]);
+
+                      if (remainingAids.length > 0) {
+                        if (sections.length === 1) {
+                          sectionAidsList[0].push(...remainingAids);
+                          remainingAids.length = 0;
+                        } else {
+                          // 먼저 매칭이 없는 섹션에 우선 배정
+                          sections.forEach((_, idx) => {
+                            if (sectionAidsList[idx].length === 0 && remainingAids.length > 0) {
+                              sectionAidsList[idx].push(remainingAids.shift());
+                            }
+                          });
+
+                          // 남은 시각자료는 섹션 순서대로 분산 배치
+                          let cursor = 0;
+                          while (remainingAids.length > 0) {
+                            sectionAidsList[cursor].push(remainingAids.shift());
+                            cursor = (cursor + 1) % sectionAidsList.length;
+                          }
+                        }
+                      }
+
+                      return sections.map((section, index) => {
+                        const sectionAids = sectionAidsList[index] || [];
 
                         return (
                           <div key={`${section.title || 'section'}-${index}`} className={styles.sectionBlock}>

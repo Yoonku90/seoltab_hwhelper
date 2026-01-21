@@ -465,6 +465,10 @@ function renderContent(text: string): string {
   // 4-1. 중점 리스트 처리 (- 형식 → • 중점으로 변환)
   result = result.replace(/^-\s+(.+)$/gm, '<div style="margin-left:1em;margin-bottom:0.3em;">• $1</div>')
 
+  // 4-2. 체크마크 리스트가 한 줄에 붙는 경우 줄바꿈 강제
+  // 예: "✓ A ✓ B" -> "✓ A\n✓ B"
+  result = result.replace(/([^\n])\s*([✓✔️✔✅])\s+/g, '$1\n$2 ')
+
   // 5. 줄바꿈 처리 (단, HTML 태그 내부는 제외)
   // <br> 태그 또는 \n을 실제 줄바꿈으로
   result = result.replace(/\\n/g, '\n')
