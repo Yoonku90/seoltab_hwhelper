@@ -719,6 +719,135 @@
   scroll-padding: calc((100% - var(--card-width)) / 2);
 }
 
+.cardNewsSection {
+  margin-top: 12px;
+}
+
+.quizComboSection {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e6e6e6;
+}
+
+.quizComboGrid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 16px;
+}
+
+.quizList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quizItem {
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+  padding: 12px;
+  background: #fafafa;
+}
+
+.quizQuestion {
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #111827;
+}
+
+.quizOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quizOption {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.quizOptionCorrect {
+  border: 1px solid #10b981;
+  background: rgba(16, 185, 129, 0.15);
+  color: #0f766e;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.quizOptionWrong {
+  border: 1px solid #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.quizResult {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.quizFlashcards {
+  min-height: 240px;
+}
+
+.downloadSection {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.downloadActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.downloadBtn {
+  border: none;
+  background: #7e57c2;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.downloadBtn:hover {
+  background: #6b49ab;
+}
+
+.downloadBtnSecondary {
+  border: 1px solid #7e57c2;
+  background: #fff;
+  color: #7e57c2;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.downloadBtnSecondary:hover {
+  background: #f4effb;
+}
+
 .cardCarousel::-webkit-scrollbar {
   display: none; /* Chrome/Safari */
 }
@@ -794,10 +923,40 @@
   border-color: #4fc3f7;
 }
 
+.deviceToggle {
+  display: inline-flex;
+  gap: 8px;
+  align-self: center;
+  margin: 0 0 8px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.deviceBtn {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.deviceBtnActive {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
 .phoneFrame {
   /* 스마트폰 크기 (최우선) */
-  width: 375px;
-  max-width: 100%;
+  --device-width: 390px;
+  --device-height: 844px;
+  --screen-radius: 24px;
+  width: min(var(--device-width), 100%);
+  max-width: var(--device-width);
   margin: 0 auto;
   padding: 8px;
   border-radius: 32px;
@@ -806,6 +965,12 @@
     0 20px 60px rgba(0, 0, 0, 0.5),
     inset 0 0 20px rgba(255, 255, 255, 0.05);
   position: relative;
+}
+
+.tabletFrame {
+  --device-width: 768px;
+  --device-height: 1024px;
+  --screen-radius: 20px;
 }
 
 .phoneFrame::before {
@@ -828,17 +993,22 @@
 }
 
 .phoneScreen {
-  border-radius: 24px;
+  border-radius: var(--screen-radius);
   background: #000;
   padding: 20px 12px 16px;
   border: 2px solid rgba(255, 255, 255, 0.1);
-  min-height: 600px;
-  max-height: 800px;
+  min-height: min(720px, calc(var(--device-height) - 48px));
+  max-height: min(820px, calc(var(--device-height) - 48px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
   --card-width: min(320px, 100% - 24px);
+}
+
+.tabletFrame .phoneScreen {
+  padding: 24px 20px 20px;
+  --card-width: min(520px, 100% - 40px);
 }
 
 .cardItem {
@@ -933,6 +1103,25 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.cardBodyClamp {
+  overflow: hidden;
+  display: -webkit-box;
+  line-clamp: 5;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+}
+
+.cardMoreBtn {
+  background: none;
+  border: none;
+  color: #9ecbff;
+  font-size: 11px;
+  cursor: pointer;
+  margin-top: 6px;
+  align-self: flex-start;
+  padding: 0;
 }
 
 .cardBody::-webkit-scrollbar {
@@ -1183,13 +1372,14 @@
 .sectionTag {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  color: #7b1fa2;
-  background: #f3e5f5;
-  border: 1px solid #e0c9f1;
+  color: #5e2bbd;
+  background: #efe7ff;
+  border: 1px solid #d5c6ff;
+  box-shadow: 0 2px 6px rgba(94, 43, 189, 0.12);
   white-space: nowrap;
 }
 
@@ -1202,11 +1392,11 @@
 .textbookHighlight {
   margin-bottom: 20px;
   padding: 16px;
-  background: #f9f7fc;
-  border-left: 4px solid #7e57c2;
-  border: 1px solid #ece6f6;
+  background: #f1fafe;
+  border-left: 4px solid #4fc3f7;
+  border: 1px solid #caedfc;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
 }
 
 .imageGrid {

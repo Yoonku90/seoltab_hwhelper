@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import MarkdownMath from '@/app/components/MarkdownMath';
 import FlashcardStudyMode from '@/app/components/FlashcardStudyMode';
 import VisualAidRenderer from '@/app/components/VisualAidRenderer';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import styles from './page.module.css';
 
 interface MappedItem {
@@ -108,6 +110,132 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
+function removeMarkdownTables(text: string): string {
+  if (!text) return '';
+  const lines = text.split('\n');
+  const filtered: string[] = [];
+  const isTableSeparator = (line: string) =>
+    /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(line);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const next = lines[i + 1];
+    if (line.includes('|') && next && isTableSeparator(next)) {
+      // Skip header + separator + following table rows
+      i += 1;
+      while (i + 1 < lines.length && lines[i + 1].includes('|')) {
+        i += 1;
+      }
+      continue;
+    }
+    filtered.push(line);
+  }
+
+  return filtered
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function hasVisualAidContent(aid: any): boolean {
+  if (!aid || typeof aid !== 'object') return false;
+  const type = aid.type || aid?.data?.type;
+  const data = aid.data || aid;
+
+  if (type === 'table') {
+    const headers = Array.isArray(data.headers) ? data.headers : [];
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    return headers.length > 0 || rows.length > 0;
+  }
+
+  if (type === 'geometry') {
+    const shapes = Array.isArray(data.shapes) ? data.shapes : [];
+    const annotations = Array.isArray(data.annotations) ? data.annotations : [];
+    return shapes.length > 0 || annotations.length > 0;
+  }
+
+  if (type === 'graph') {
+    const points = Array.isArray(data.points) ? data.points : [];
+    const func = typeof data.function === 'string' ? data.function.trim() : '';
+    return points.length > 0 || func.length > 0;
+  }
+
+  if (type === 'chart') {
+    const layers = Array.isArray(data.layers) ? data.layers : [];
+    const config = data.chart_config || {};
+    const hasConfig = Object.keys(config).length > 0;
+    return layers.length > 0 || hasConfig;
+  }
+
+  const keys = Object.keys(data || {});
+  return keys.length > 0;
+}
+
+function resolveVisualAids(value: unknown): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+  }
+  return [];
+}
+
+function normalizeTitleText(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, '');
+}
+
+function parseSectionTag(title: string | null): { tag: string | null; text: string } {
+  if (!title) return { tag: null, text: '' };
+  const match = title.match(/^\[([^\]]+)\]\s*(.*)$/);
+  if (!match) return { tag: null, text: title };
+  return { tag: match[1].trim(), text: match[2]?.trim() || '' };
+}
+
+function splitDetailedContentSections(content: string): Array<{ title: string | null; body: string }> {
+  const lines = content.split('\n');
+  const sections: Array<{ title: string | null; body: string[] }> = [];
+  let current: { title: string | null; body: string[] } | null = null;
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^###\s*(.+)$/);
+    if (headingMatch) {
+      if (current) {
+        sections.push(current);
+      }
+      current = { title: headingMatch[1].trim(), body: [] };
+      continue;
+    }
+
+    if (!current) {
+      current = { title: null, body: [] };
+    }
+    current.body.push(line);
+  }
+
+  if (current) {
+    sections.push(current);
+  }
+
+  return sections
+    .map((section) => ({
+      title: section.title,
+      body: section.body.join('\n').trim(),
+    }))
+    .filter((section) => section.title || section.body);
+}
+
+function normalizeSectionTagLines(content: string): string {
+  if (!content) return content;
+  return content.replace(/^\s*\[([^\]]+)\]\s*$/gm, '### [$1]');
+}
+
 const KEYWORD_STOPWORDS = new Set([
   '오늘', '수업', '핵심', '정리', '내용', '부분', '문제', '설명', '예시', '규칙', '개념',
   '학생', '선생님', '쌤', '요약', '포인트', '중요', '정답', '이번', '이것', '그것', '또는',
@@ -199,66 +327,6 @@ function limitCardText(text: string, maxChars: number): string {
   }
 
   return sliced.trim() + '…';
-}
-
-function resolveVisualAids(value: unknown): any[] {
-  if (Array.isArray(value)) return value;
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    }
-  }
-  return [];
-}
-
-function normalizeTitleText(value: string): string {
-  return value.toLowerCase().replace(/\s+/g, '');
-}
-
-function parseSectionTag(title: string | null): { tag: string | null; text: string } {
-  if (!title) return { tag: null, text: '' };
-  const match = title.match(/^\[([^\]]+)\]\s*(.*)$/);
-  if (!match) return { tag: null, text: title };
-  return { tag: match[1].trim(), text: match[2]?.trim() || '' };
-}
-
-function splitDetailedContentSections(content: string): Array<{ title: string | null; body: string }> {
-  const lines = content.split('\n');
-  const sections: Array<{ title: string | null; body: string[] }> = [];
-  let current: { title: string | null; body: string[] } | null = null;
-
-  for (const line of lines) {
-    const headingMatch = line.match(/^###\s*(.+)$/);
-    if (headingMatch) {
-      if (current) {
-        sections.push(current);
-      }
-      current = { title: headingMatch[1].trim(), body: [] };
-      continue;
-    }
-
-    if (!current) {
-      current = { title: null, body: [] };
-    }
-    current.body.push(line);
-  }
-
-  if (current) {
-    sections.push(current);
-  }
-
-  return sections
-    .map((section) => ({
-      title: section.title,
-      body: section.body.join('\n').trim(),
-    }))
-    .filter((section) => section.title || section.body);
 }
 
 function normalizeSummaryObject(summary: any): any {
@@ -366,6 +434,7 @@ function buildQuickCheck(text: string, seed: number, hint?: CardQuizHint | null,
 function LectureSummaryPage() {
   const router = useRouter();
   const cardScrollRef = useRef<HTMLDivElement | null>(null);
+  const summaryContainerRef = useRef<HTMLDivElement | null>(null);
   const searchParams = useSearchParams();
   const [roomId, setRoomId] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -384,6 +453,7 @@ function LectureSummaryPage() {
   const [previousSummaryResult, setPreviousSummaryResult] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'full' | 'cards' | 'flashcards'>('full');
+  const [cardDevice, setCardDevice] = useState<'phone' | 'tablet'>('phone');
   const [testMode, setTestMode] = useState(false);
   const [showMappedView, setShowMappedView] = useState(false);
   const [mappedViewMode, setMappedViewMode] = useState<'mapped' | 'stt'>('mapped');
@@ -397,6 +467,7 @@ function LectureSummaryPage() {
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [checkedCards, setCheckedCards] = useState<Record<number, boolean>>({});
   const [quizSelection, setQuizSelection] = useState<Record<number, number | null>>({});
+  const [comboQuizSelection, setComboQuizSelection] = useState<Record<number, number | null>>({});
   const [cardFlipped, setCardFlipped] = useState<Record<number, boolean>>({});
   const cardScrollRafRef = useRef<number | null>(null);
   const reviewProgramIdParam = searchParams.get('reviewProgramId');
@@ -511,7 +582,7 @@ function LectureSummaryPage() {
 
     try {
       console.log('[lecture-summary] 요약본 생성 시작, Room ID:', roomId.trim());
-      
+
       const res = await fetch('/api/lecture/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -688,6 +759,7 @@ function LectureSummaryPage() {
     setCheckedCards({});
     setQuizSelection({});
     setCardFlipped({});
+    setComboQuizSelection({});
     if (cardScrollRef.current) {
       cardScrollRef.current.scrollTo({ left: 0 });
     }
@@ -734,14 +806,23 @@ function LectureSummaryPage() {
     loadReviewProgram();
   }, [reviewProgramIdParam]);
 
+  const getCardStepWidth = (container: HTMLDivElement) => {
+    const firstCard = container.children[0] as HTMLElement | undefined;
+    const cardWidth = firstCard?.offsetWidth ?? container.clientWidth;
+    const styles = window.getComputedStyle(container);
+    const gapValue = styles.columnGap || styles.gap || '0';
+    const gap = Number.parseFloat(gapValue) || 0;
+    return cardWidth + gap;
+  };
+
   const scrollToCard = (index: number) => {
     const container = cardScrollRef.current;
     if (!container) return;
     const total = cardItems.length;
     if (total === 0) return;
     const clampedIndex = Math.min(Math.max(index, 0), total - 1);
-    const cardWidth = container.clientWidth;
-    container.scrollTo({ left: cardWidth * clampedIndex, behavior: 'smooth' });
+    const cardStep = getCardStepWidth(container);
+    container.scrollTo({ left: cardStep * clampedIndex, behavior: 'smooth' });
   };
 
   const handleCardScroll = () => {
@@ -753,9 +834,9 @@ function LectureSummaryPage() {
     }
 
     cardScrollRafRef.current = requestAnimationFrame(() => {
-      const cardWidth = container.clientWidth;
-      if (!cardWidth) return;
-      const rawIndex = Math.round(container.scrollLeft / cardWidth);
+      const cardStep = getCardStepWidth(container);
+      if (!cardStep) return;
+      const rawIndex = Math.round(container.scrollLeft / cardStep);
       const clampedIndex = Math.min(Math.max(rawIndex, 0), cardItems.length - 1);
       setActiveCardIndex(clampedIndex);
     });
@@ -770,6 +851,84 @@ function LectureSummaryPage() {
 
   const handleQuizSelect = (index: number, optionIndex: number, isCorrect: boolean) => {
     setQuizSelection((prev) => ({ ...prev, [index]: optionIndex }));
+    if (isCorrect) {
+      setCheckedCards((checked) => ({ ...checked, [index]: true }));
+    }
+  };
+
+  const getDownloadFileBase = () => summaryResult?.roomId || 'summary';
+
+  const downloadSummaryImage = async (format: 'png' | 'jpeg') => {
+    if (!summaryContainerRef.current) return;
+    const canvas = await html2canvas(summaryContainerRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+    });
+    const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const quality = format === 'jpeg' ? 0.92 : 1;
+    const dataUrl = canvas.toDataURL(mime, quality);
+    const anchor = document.createElement('a');
+    anchor.href = dataUrl;
+    anchor.download = `${getDownloadFileBase()}_summary.${format}`;
+    anchor.click();
+  };
+
+  const downloadSummaryPdf = async () => {
+    if (!summaryContainerRef.current) return;
+    const canvas = await html2canvas(summaryContainerRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+    });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: canvas.width > canvas.height ? 'l' : 'p',
+      unit: 'px',
+      format: [canvas.width, canvas.height],
+    });
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+    pdf.save(`${getDownloadFileBase()}_summary.pdf`);
+  };
+
+  const buildSummaryDownloadText = () => {
+    if (!summaryResult?.summary) return '';
+    const summary = summaryResult.summary;
+    const lines: string[] = [];
+    const title = summary.title || '요약본';
+    lines.push(`# ${title}`);
+    if (summary.teacherMessage) {
+      lines.push('', '## 쌤의 한마디', resolveString(summary.teacherMessage));
+    }
+    if (summary.unitTitle) {
+      lines.push('', `## ${summary.unitTitle}`);
+    }
+    if (summary.detailedContent || summary.conceptSummary) {
+      const core = resolveString(summary.detailedContent || summary.conceptSummary || '');
+      lines.push('', '## 오늘 수업 핵심 정리', core);
+    }
+    if (summary.textbookHighlight) {
+      lines.push('', '## 쌤 Tip', resolveString(summary.textbookHighlight));
+    }
+    if (Array.isArray(summary.missedParts) && summary.missedParts.length > 0) {
+      lines.push('', '## 학생 질문 정리');
+      summary.missedParts.forEach((part: any, idx: number) => {
+        lines.push(`- Q${idx + 1}. ${String(part.question || '').trim()}`);
+        if (part.explanation) lines.push(`  - 설명: ${String(part.explanation).trim()}`);
+        if (part.contextMeaning) lines.push(`  - 문맥: ${String(part.contextMeaning).trim()}`);
+        if (part.whatNotUnderstood) lines.push(`  - 모르던 부분: ${String(part.whatNotUnderstood).trim()}`);
+        if (part.whatToKnow) lines.push(`  - 알아야 할 것: ${String(part.whatToKnow).trim()}`);
+        if (part.learningValue) lines.push(`  - 학습적 의미: ${String(part.learningValue).trim()}`);
+      });
+    }
+    if (summary.encouragement) {
+      lines.push('', '## 마무리 응원', resolveString(summary.encouragement));
+    }
+    return lines.join('\n');
+  };
+
+  const handleComboQuizSelect = (index: number, optionIndex: number, isCorrect: boolean) => {
+    setComboQuizSelection((prev) => ({ ...prev, [index]: optionIndex }));
     if (isCorrect) {
       setCheckedCards((checked) => ({ ...checked, [index]: true }));
     }
@@ -999,8 +1158,24 @@ function LectureSummaryPage() {
               </div>
 
               {viewMode === 'cards' && (
-                <div className={styles.phoneFrame}>
+                <div className={`${styles.phoneFrame} ${cardDevice === 'tablet' ? styles.tabletFrame : ''}`}>
                   <div className={styles.phoneScreen}>
+                    <div className={styles.deviceToggle}>
+                      <button
+                        type="button"
+                        className={`${styles.deviceBtn} ${cardDevice === 'phone' ? styles.deviceBtnActive : ''}`}
+                        onClick={() => setCardDevice('phone')}
+                      >
+                        iPhone
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.deviceBtn} ${cardDevice === 'tablet' ? styles.deviceBtnActive : ''}`}
+                        onClick={() => setCardDevice('tablet')}
+                      >
+                        iPad
+                      </button>
+                    </div>
                     <div className={styles.cardControls}>
                       <button
                         className={styles.cardNavBtn}
@@ -1129,8 +1304,8 @@ function LectureSummaryPage() {
                         );
                       })}
                     </div>
+                    </div>
                   </div>
-                </div>
               )}
 
               {viewMode === 'flashcards' && (
@@ -1233,6 +1408,7 @@ function LectureSummaryPage() {
                 </div>
               )}
 
+              <div ref={summaryContainerRef}>
               {/* 쌤의 한마디 */}
               {viewMode === 'full' && summaryResult.summary?.teacherMessage && (
                 <div className={styles.teacherMessage}>
@@ -1241,7 +1417,6 @@ function LectureSummaryPage() {
                 </div>
               )}
 
-              {/* UNIT 제목 */}
               {viewMode === 'full' && summaryResult.summary?.unitTitle && (
                 <div className={styles.unitTitle}>
                   <h4>{summaryResult.summary.unitTitle}</h4>
@@ -1284,8 +1459,8 @@ function LectureSummaryPage() {
                           >
                             STT만 보기
                           </button>
-                        </div>
-                      )}
+                </div>
+              )}
                     </div>
                   </div>
                   <p className={styles.hint}>
@@ -1310,7 +1485,7 @@ function LectureSummaryPage() {
                               />
                               매핑 안된 것까지 모두 보기
                             </label>
-                          </div>
+                  </div>
                           {(showMappedOnly
                             ? mappedItems.filter((item) => item.texts && item.texts.length > 0)
                             : mappedItems
@@ -1334,15 +1509,15 @@ function LectureSummaryPage() {
                                     })}
                                   </span>
                                   <span>텍스트 {item.texts.length}개</span>
-                                </div>
+                            </div>
                                 {item.texts.length > 0 ? (
                                   <div className={styles.mappedTexts}>
                                     {visibleTexts.map((text, tIdx) => (
                                       <div key={`${idx}-text-${tIdx}`} className={styles.mappedTextItem}>
                                         <span className={styles.mappedSpeaker}>{text.speaker}</span>
                                         <span>{text.text}</span>
-                                      </div>
-                                    ))}
+                          </div>
+                        ))}
                                     {item.texts.length > 6 && (
                                       <button
                                         type="button"
@@ -1359,11 +1534,11 @@ function LectureSummaryPage() {
                                           : `외 ${item.texts.length - 6}개 더 보기`}
                                       </button>
                                     )}
-                                  </div>
+                      </div>
                                 ) : (
                                   <div className={styles.mappedEmpty}>매핑된 텍스트 없음</div>
                                 )}
-                              </div>
+                    </div>
                             </div>
                           )})}
                         </div>
@@ -1394,14 +1569,14 @@ function LectureSummaryPage() {
                   <div className={styles.mappedHeaderRow}>
                     <h5>📚 커리큘럼 매핑</h5>
                     <div className={styles.mappedHeaderActions}>
-                      <button
-                        type="button"
+                    <button
+                      type="button"
                         className={styles.mappedToggle}
                         onClick={() => setShowCurriculumMapping((prev) => !prev)}
-                      >
+                    >
                         {showCurriculumMapping ? '접기' : '열기'}
-                      </button>
-                    </div>
+                    </button>
+                  </div>
                   </div>
                   {showCurriculumMapping && (
                     <div className={styles.mappedCurriculum}>
@@ -1421,7 +1596,7 @@ function LectureSummaryPage() {
                       ) : (
                         <div className={styles.mappedEmpty}>일치하는 커리큘럼 항목 없음</div>
                       )}
-                    </div>
+                  </div>
                   )}
                 </div>
               )}
@@ -1436,7 +1611,7 @@ function LectureSummaryPage() {
                       const resolved = (() => {
                         if (typeof content === 'string') {
                           const trimmed = content.trim();
-                          if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+                          if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
                               (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
                             try {
                               const parsed = JSON.parse(trimmed);
@@ -1452,8 +1627,15 @@ function LectureSummaryPage() {
                         return JSON.stringify(content);
                       })();
 
-                      const sections = splitDetailedContentSections(resolved);
-                      const visualAids = resolveVisualAids(summaryResult.summary?.visualAids);
+                      const sections = splitDetailedContentSections(normalizeSectionTagLines(resolved));
+                      const subjectLabel =
+                        summaryResult?.curriculumReference?.subject || summaryResult?.subject || '';
+                      const isMathSubject =
+                        typeof subjectLabel === 'string' &&
+                        (subjectLabel.includes('수학') || subjectLabel.toLowerCase().includes('math'));
+                      const visualAids = isMathSubject
+                        ? resolveVisualAids(summaryResult.summary?.visualAids)
+                        : [];
                       const usedAidIndexes = new Set<number>();
 
                       const matchAidsForSection = (title: string | null) => {
@@ -1504,7 +1686,7 @@ function LectureSummaryPage() {
 
                       return sections.map((section, index) => {
                         const parsedTitle = parseSectionTag(section.title);
-                        const sectionAids = sectionAidsList[index] || [];
+                        const sectionAids = (sectionAidsList[index] || []).filter(hasVisualAidContent);
 
                         const hasAids = sectionAids.length > 0;
                         return (
@@ -1517,7 +1699,11 @@ function LectureSummaryPage() {
                                 {parsedTitle.tag && (
                                   <span className={styles.sectionTag}>[{parsedTitle.tag}]</span>
                                 )}
-                                <MarkdownMath content={`### ${parsedTitle.text || section.title}`} />
+                                {(parsedTitle.tag ? parsedTitle.text : section.title) && (
+                                  <MarkdownMath
+                                    content={`### ${parsedTitle.tag ? parsedTitle.text : section.title}`}
+                                  />
+                                )}
                               </div>
                             )}
                             {section.body && (
@@ -1579,14 +1765,15 @@ function LectureSummaryPage() {
                             (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
                           try {
                             const parsed = JSON.parse(trimmed);
-                            return typeof parsed === 'string' ? parsed : content;
+                            const text = typeof parsed === 'string' ? parsed : content;
+                            return removeMarkdownTables(text);
                           } catch {
-                            return content;
+                            return removeMarkdownTables(content);
                           }
                         }
-                        return content;
+                        return removeMarkdownTables(content);
                       }
-                      return JSON.stringify(content);
+                      return removeMarkdownTables(JSON.stringify(content));
                     })()}
                   />
                 </div>
@@ -1646,6 +1833,29 @@ function LectureSummaryPage() {
                   <MarkdownMath content={summaryResult.summary.encouragement} />
                 </div>
               )}
+              </div>
+              {/* 최종 요약 정리본 다운로드 */}
+              {viewMode === 'full' && summaryResult.summary && (
+                <div className={styles.downloadSection}>
+                  <h5>📥 최종 요약 정리본 다운로드</h5>
+                  <div className={styles.downloadActions}>
+                    <button
+                      type="button"
+                      className={styles.downloadBtn}
+                      onClick={() => downloadSummaryImage('png')}
+                    >
+                      이미지(PNG)
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.downloadBtnSecondary}
+                      onClick={downloadSummaryPdf}
+                    >
+                      PDF 다운로드
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 전체 요약 (fallback) */}
               {summaryResult.summary?.summary && !summaryResult.summary.teacherMessage && (
@@ -1655,14 +1865,14 @@ function LectureSummaryPage() {
               )}
 
               <div className={styles.summaryMeta}>
-                <div className={styles.metaRow}>
+                  <div className={styles.metaRow}>
                   <strong>Room ID:</strong> {summaryResult.roomId || '없음'}
-                </div>
+                  </div>
                 {summaryResult.summaryMeta && (
                   <>
-                    <div className={styles.metaRow}>
+                <div className={styles.metaRow}>
                       <strong>LLM 호출 수:</strong> {summaryResult.summaryMeta.llmCallCount ?? 0}
-                    </div>
+                </div>
                     <div className={styles.metaRow}>
                       <strong>입력 토큰:</strong> {summaryResult.summaryMeta.tokenUsage?.promptTokens ?? 0}
                     </div>

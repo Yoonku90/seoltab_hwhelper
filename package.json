@@ -12,6 +12,7 @@
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.90.1",
     "html2canvas": "^1.4.1",
+    "jspdf": "^4.0.0",
     "katex": "^0.16.22",
     "mongodb": "^6.3.0",
     "next": "^15.2.0",
