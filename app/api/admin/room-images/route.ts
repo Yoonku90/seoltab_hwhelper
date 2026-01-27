@@ -15,7 +15,7 @@ interface ImageTimelineItem {
 interface TextItem {
   speaker: string;
   text: string;
-  timestamp: number; // 유닉스 타임스탬프
+  timestamp: number | null; // 유닉스 타임스탬프
 }
 
 interface MappedItem {
@@ -352,7 +352,10 @@ async function fetchTextTimeline(roomId: string): Promise<TextItem[]> {
 
             return { speaker, text, timestamp: timestamp ? Number(timestamp) : null };
           })
-          .filter((item: TextItem) => item.text && item.text.trim().length > 0 && item.timestamp !== null);
+          .filter(
+            (item): item is TextItem =>
+              Boolean(item.text && item.text.trim().length > 0) && item.timestamp !== null
+          );
         
         if (result.length > 0) {
           console.log(`[fetchTextTimeline] ${result.length}개 텍스트 아이템 가져옴`);
@@ -380,7 +383,10 @@ async function fetchTextTimeline(roomId: string): Promise<TextItem[]> {
             timestamp: timestamp ? Number(timestamp) : null,
           };
         })
-        .filter((item: TextItem) => item.text && item.text.trim().length > 0 && item.timestamp !== null);
+        .filter(
+          (item): item is TextItem =>
+            Boolean(item.text && item.text.trim().length > 0) && item.timestamp !== null
+        );
       
       if (result.length > 0) {
         console.log(`[fetchTextTimeline] ${result.length}개 텍스트 아이템 가져옴 (직접 배열)`);
@@ -408,7 +414,8 @@ function mapImagesToTexts(
   for (const image of imageTimeline) {
     // 이미지의 start ~ end 범위에 포함되는 텍스트 찾기
     const matchingTexts = textTimeline.filter(
-      (text) => text.timestamp >= image.start && text.timestamp <= image.end
+      (text): text is TextItem =>
+        text.timestamp !== null && text.timestamp >= image.start && text.timestamp <= image.end
     );
 
     mapped.push({
