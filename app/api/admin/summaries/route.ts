@@ -3,7 +3,7 @@ import { Collections } from '@/lib/db';
 
 /**
  * GET /api/admin/summaries
- * 관리자용 요약본 목록 조회 (시크릿 노트만)
+ * 관리자용 요약본 목록 조회
  */
 export async function GET(req: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const limit = Number(searchParams.get('limit') || 100);
     const offset = Number(searchParams.get('offset') || 0);
 
-    const filter: Record<string, any> = { 'metadata.isSecretNote': true };
+    const filter: Record<string, any> = {};
     if (studentId) {
       filter.studentId = studentId;
     }
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     const summaries = await reviewPrograms
       .find(filter as any)
-      .sort({ createdAt: -1 } as any)
+      .sort({ _id: -1 } as any)
       .skip(offset)
       .limit(Number.isFinite(limit) ? limit : 100)
       .toArray();
