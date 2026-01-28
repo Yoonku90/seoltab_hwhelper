@@ -859,36 +859,48 @@ function LectureSummaryPage() {
   const getDownloadFileBase = () => summaryResult?.roomId || 'summary';
 
   const downloadSummaryImage = async (format: 'png' | 'jpeg') => {
-    if (!summaryContainerRef.current) return;
-    const canvas = await html2canvas(summaryContainerRef.current, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-    });
-    const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-    const quality = format === 'jpeg' ? 0.92 : 1;
-    const dataUrl = canvas.toDataURL(mime, quality);
-    const anchor = document.createElement('a');
-    anchor.href = dataUrl;
-    anchor.download = `${getDownloadFileBase()}_summary.${format}`;
-    anchor.click();
+    const container = summaryContainerRef.current;
+    if (!container) return;
+    container.classList.add(styles.exporting);
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+      const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+      const quality = format === 'jpeg' ? 0.92 : 1;
+      const dataUrl = canvas.toDataURL(mime, quality);
+      const anchor = document.createElement('a');
+      anchor.href = dataUrl;
+      anchor.download = `${getDownloadFileBase()}_summary.${format}`;
+      anchor.click();
+    } finally {
+      container.classList.remove(styles.exporting);
+    }
   };
 
   const downloadSummaryPdf = async () => {
-    if (!summaryContainerRef.current) return;
-    const canvas = await html2canvas(summaryContainerRef.current, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-    });
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({
-      orientation: canvas.width > canvas.height ? 'l' : 'p',
-      unit: 'px',
-      format: [canvas.width, canvas.height],
-    });
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-    pdf.save(`${getDownloadFileBase()}_summary.pdf`);
+    const container = summaryContainerRef.current;
+    if (!container) return;
+    container.classList.add(styles.exporting);
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'l' : 'p',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+      });
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`${getDownloadFileBase()}_summary.pdf`);
+    } finally {
+      container.classList.remove(styles.exporting);
+    }
   };
 
   const buildSummaryDownloadText = () => {

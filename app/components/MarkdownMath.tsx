@@ -453,7 +453,14 @@ function renderContent(text: string): string {
 
   // 3-1. 마크다운 변환 (형광펜 먼저 처리)
   result = result
-    .replace(/==([\s\S]+?)==/g, '<mark style="background:linear-gradient(transparent 45%, #fff59d 45%);color:#111;padding:0 3px;border-radius:2px;">$1</mark>')
+    .replace(/==([\s\S]+?)==/g, (_match, inner) => {
+      const parts = String(inner).split('\n')
+      const wrapped = parts.map((part) => {
+        if (!part) return ''
+        return `<mark style="background:linear-gradient(transparent 45%, #fff59d 45%);color:#111;padding:0 3px;border-radius:2px;box-decoration-break:clone;-webkit-box-decoration-break:clone;">${part}</mark>`
+      })
+      return wrapped.join('\n')
+    })
     .replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>')
     .replace(/(?<!\*)\*(?!\*)([^*\n]+?)\*(?!\*)/g, '<em>$1</em>')
     .replace(/~~([\s\S]+?)~~/g, '<del>$1</del>')
